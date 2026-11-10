@@ -163,16 +163,44 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
     softBox(mesh.userData.inner, 0.6, 0.3, 0.6, 0x5a6b3a, 0, 0.74, 0.02, 0.2);                 // vest
     softBox(mesh.userData.head, 0.5, 0.18, 0.48, 0x4d5c32, 0, 0.3, 0.04, 0.48);                // helmet
   };
+  // Sergeant Biscuit: a large dog biscuit in full army gear. Built with the same animated
+  // parts as a dog (legs, head, tail, ears) so it can run and idle with the rest of the crew.
+  const makeBiscuitSoldier = () => {
+    const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner);
+    const dough = 0xf0dcae, baked = 0xdcc189;
+    softBox(inner, 0.62, 1.25, 0.3, dough, 0, 1.0, 0, 0.3);                                   // the biscuit, standing on end
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) softBox(inner, 0.44, 0.44, 0.34, dough, sx * 0.27, 1.0 + sy * 0.62, 0, 0.48); // bone knobs
+    for (let i = 0; i < 5; i++) softBox(inner, 0.05, 0.05, 0.03, baked, -0.16 + (i % 3) * 0.16, 0.62 + Math.floor(i / 3) * 0.14, 0.16); // docking holes
+    softBox(inner, 0.7, 0.42, 0.38, 0x5a6b3a, 0, 0.92, 0, 0.2);                               // vest
+    softBox(inner, 0.72, 0.07, 0.4, 0x2a2a2a, 0, 0.78, 0); softBox(inner, 0.16, 0.16, 0.08, 0x8a7f55, -0.18, 0.95, 0.2); softBox(inner, 0.16, 0.16, 0.08, 0x4d5c32, 0.18, 0.95, 0.2);
+    const head = new THREE.Group(); head.position.set(0, 1.42, 0); inner.add(head);
+    for (const sx of [-1, 1]) { softBox(head, 0.14, 0.16, 0.05, 0xffffff, sx * 0.14, 0, 0.17); softBox(head, 0.07, 0.08, 0.05, 0x0a0a0a, sx * 0.14, -0.01, 0.19); softBox(head, 0.16, 0.035, 0.05, 0x7a5a30, sx * 0.14, 0.12, 0.18).rotation.z = -sx * 0.25; }
+    softBox(head, 0.16, 0.04, 0.04, 0x7a5a30, 0, -0.16, 0.17);                                // a brave little mouth
+    softBox(head, 0.86, 0.26, 0.5, 0x4d5c32, 0, 0.34, 0, 0.48); softBox(head, 0.94, 0.06, 0.58, 0x3d4a2a, 0, 0.24, 0); // helmet over the top knobs
+    const legs = [];
+    for (const [x, y, len] of [[-0.2, 1.05, 0.34], [0.2, 1.05, 0.34], [-0.17, 0.42, 0.42], [0.17, 0.42, 0.42]]) { // two arms, two legs
+      const piv = new THREE.Group(); piv.position.set(x * (y > 1 ? 1.9 : 1), y, 0); inner.add(piv);
+      softBox(piv, 0.11, len, 0.11, dough, 0, -len / 2, 0); softBox(piv, 0.15, 0.09, 0.2, y > 1 ? dough : 0x2a2a2a, 0, -len, 0.03); // mitts / boots
+      legs.push(piv);
+    }
+    const tail = new THREE.Group(); inner.add(tail);
+    g.userData = { inner, head, legs, tail, ears: [new THREE.Group(), new THREE.Group()], tongue: null, phase: 0, treat: true };
+    return g;
+  };
   const allies = [];
-  // Dexter's boat crew: two more black labs and a yellow lab. One of them is about to have a bad morning.
+  // Dexter's boat crew: Sergeant Biscuit (a large treat in army gear, about to have a bad morning),
+  // two black labs and a yellow lab.
   const BLACK_LAB = { color: 0x26262d, chest: 0xf2f0ea, ear: 'floppy', tail: 'long', collar: 0x3f6f8f };
   const crew = [[BLACK_LAB, -0.95, 1.5], [{ ...BLACK_LAB, chest: null, collar: 0x38a860 }, 0.95, 1.9], [ALLY_LOOKS[1], -0.75, -0.8], [{ ...BLACK_LAB, chest: null, collar: 0xf2c230 }, 0.9, -1.2]]
     .map(([look, ox, oz], i) => {
-      const mesh = makeDog({ ...look, tongue: true }); kit(mesh);
+      const mesh = i === 0 ? makeBiscuitSoldier() : makeDog({ ...look, tongue: true });
+      if (i) kit(mesh);
       mesh.scale.multiplyScalar(1.35); scene.add(mesh);
       return { mesh, base: mesh.scale.x, ox, oz, x: 0, z: 0, sp: 7.6 + i * 0.5, out: 0, gone: false };
     });
   const buddy = crew[0], FALL = { x: -2, z: 3.5 };
+  buddy.mesh.rotation.order = 'YXZ'; // so he can topple straight onto his back whichever way he faces
+  const LIE_YAW = -Math.PI * 0.75;    // lands face-up, side-on to the cutscene camera
   const stars = new THREE.Group();
   for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2; softBox(stars, 0.16, 0.16, 0.05, mat(0xffe36a, { emissive: 0xffc400, emissiveIntensity: 1 }), Math.cos(a) * 0.5, 0, Math.sin(a) * 0.5).rotation.z = 0.78; }
   stars.visible = false; scene.add(stars);
@@ -361,8 +389,8 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
       for (const c of crew) { c.x = c.ox; c.z = st.boatZ + c.oz; c.mesh.position.set(c.x, st.y, c.z); animateDog(c.mesh, st.clock, 0, 0.9); }
       if (st.t > 5.4) { st.phase = 'charge'; st.t = 0; st.y = 0; caption('Go go go!'); sfx.bark(); }
     } else if (st.phase === 'charge') {
-      // Cutscene: everyone piles off the boat. One of the labs takes an acorn to the helmet and
-      // flops over (he is fine, just very dramatic). Dexter sees it. Now it is personal.
+      // Cutscene: everyone piles off the boat. Sergeant Biscuit, the giant treat, takes an acorn to
+      // the helmet and topples over. Dexter sees it. A treat. Now it is personal.
       const t = st.t;
       const dz = SHORE_Z - 3 - st.z;
       if (Math.abs(dz) > 0.2) { st.z += Math.sign(dz) * 6 * dt; st.move = 1; st.face = Math.PI; } else st.move = 0;
@@ -377,20 +405,20 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
         c.mesh.rotation.y = Math.PI; animateDog(c.mesh, st.clock, 1.2, 1);
         if (c.z < -13.5) { c.out += dt / 0.35; c.mesh.scale.setScalar(c.base * Math.max(0.01, 1 - c.out)); if (c.out >= 1) { c.gone = true; c.mesh.visible = false; } }
       }
-      for (const c of crew) if (!c.gone) c.mesh.position.set(c.x, c === buddy && buddy.down ? 0.1 : 0, c.z);
+      for (const c of crew) if (!c.gone) c.mesh.position.set(c.x, c === buddy && buddy.down ? 0.24 * buddy.down : 0, c.z);
       if (t > 1.0 && t < 1.6) {                                   // the acorn comes in
         const k = (t - 1.0) / 0.6; bonk.visible = true;
         bonk.position.set(FALL.x + (1 - k) * 3, 0.9 + (1 - k) * 9, FALL.z - (1 - k) * 12);
       }
       if (t >= 1.6 && !buddy.down) {
         buddy.down = 0.001; bonk.visible = false; stars.visible = true;
-        sfx.hit(); sfx.whine(); caption('Sergeant Biscuit takes an acorn straight to the helmet.');
+        sfx.hit(); sfx.whine(); caption('Sergeant Biscuit takes an acorn straight to the helmet. A perfectly good treat.');
       }
       if (buddy.down) {
         buddy.down = Math.min(1, buddy.down + dt * 3.5);
-        buddy.mesh.rotation.set(0, 0.6, buddy.down * 1.5);        // keels over onto his side
+        buddy.mesh.rotation.set(-buddy.down * 1.5, LIE_YAW, 0);   // topples flat onto his back
         animateDog(buddy.mesh, st.clock, 0, 0.1);
-        stars.position.set(buddy.x, 1.5, buddy.z); stars.rotation.y += dt * 4;
+        stars.position.set(buddy.x + 1.35, 1.0, buddy.z + 1.35); stars.rotation.y += dt * 4;
       }
       if (t > 3.0 && t - dt <= 3.0) { caption('Dexter saw the whole thing.'); }
       if (t > 4.6 && t - dt <= 4.6) { caption('This is personal now.'); sfx.power(); }
@@ -458,8 +486,8 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
         if (gone) { scene.remove(a.mesh); acorns.splice(i, 1); }
       }
       if (buddy.down) {
-        if (st.phase === 'end') { buddy.down = Math.max(0.001, buddy.down - dt * 1.5); stars.visible = false; buddy.mesh.rotation.set(0, 0.6, buddy.down * 1.5); buddy.mesh.position.y = 0; animateDog(buddy.mesh, st.clock, 0, 1); }
-        else { animateDog(buddy.mesh, st.clock, 0, 0.15); stars.position.set(buddy.x, 1.5, buddy.z); stars.rotation.y += dt * 4; }
+        if (st.phase === 'end') { buddy.down = Math.max(0.001, buddy.down - dt * 1.5); stars.visible = false; buddy.mesh.rotation.set(-buddy.down * 1.5, LIE_YAW, 0); buddy.mesh.position.y = 0; animateDog(buddy.mesh, st.clock, 0, 1); }
+        else { animateDog(buddy.mesh, st.clock, 0, 0.15); stars.position.set(buddy.x + 1.35, 1.0, buddy.z + 1.35); stars.rotation.y += dt * 4; }
       }
       if (st.phase === 'end' && st.t > 5.5) { st.phase = 'off'; onEnd(); }
     }
@@ -483,7 +511,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
     else if (st.phase === 'charge') {
       const t = st.t;
       if (t < 1.0) { want.set(-5, 1.4, SHORE_Z - 8); look.set(0, 1, SHORE_Z); return t < 0.1; }                                  // low, facing the dogs pouring off the ramp
-      if (t < 3.0) { want.set(FALL.x + 4.6, 1.5, FALL.z - 4.4 + t * 0.2); look.set(FALL.x, 0.8, FALL.z); return t < 1.1; }       // on Sergeant Biscuit
+      if (t < 3.0) { want.set(FALL.x + 4.6, 1.7 + Math.max(0, t - 1.6) * 2.1, FALL.z - 4.0); look.set(FALL.x + 0.95, 0.5, FALL.z + 0.95); return t < 1.1; } // rises over the fallen sergeant       // on Sergeant Biscuit
       if (t < 4.6) { want.set(st.x + 4.6, 2.0, st.z - 5.2); look.set(st.x - 0.6, 1.3, st.z - 0.6); return t < 3.1; }             // Dexter looks over
       want.set(st.x + 0.7, 1.75, st.z - 5.6 + (t - 4.6) * 0.7); look.set(st.x, 1.6, st.z); return t < 4.7; // slow push-in on the scarred stare
     }
