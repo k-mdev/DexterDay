@@ -206,34 +206,6 @@ export function makeDexter() {
   return d;
 }
 
-// Zoomies form: a small Dexter-shaped jet. Faces +Z.
-export function makeDexterJet() {
-  const g = new THREE.Group();
-  const inner = new THREE.Group(); g.add(inner);
-  const fur = new THREE.MeshStandardMaterial({ color: 0x26262d, roughness: 0.45, metalness: 0.25 });
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1.25, 8, 16), fur); body.rotation.x = Math.PI / 2; body.castShadow = true; inner.add(body);
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.55, 14), fur); nose.rotation.x = Math.PI / 2; nose.position.z = 1.1; inner.add(nose);
-  softBox(inner, 0.14, 0.1, 0.1, 0x0a0a0a, 0, 0, 1.38);                                  // wet nose on the tip
-  softBox(inner, 0.2, 0.06, 0.3, 0x8a8a8c, 0, -0.17, 0.95);                              // grey chin
-  for (const s of [-1, 1]) {
-    softBox(inner, 0.13, 0.13, 0.08, 0xf4f1e8, s * 0.13, 0.2, 0.72); softBox(inner, 0.08, 0.09, 0.07, 0x7a4215, s * 0.13, 0.2, 0.76); softBox(inner, 0.04, 0.045, 0.06, 0x0a0a0a, s * 0.13, 0.2, 0.79);
-    const wing = softBox(inner, 1.25, 0.07, 0.62, 0x26262d, s * 0.82, -0.02, -0.12, 0.3); wing.rotation.y = s * 0.42; wing.rotation.z = s * 0.06;
-    softBox(inner, 0.2, 0.08, 0.3, 0xc7362b, s * 1.42, 0.02, -0.42).rotation.y = s * 0.42;  // red wingtips
-    softBox(inner, 0.55, 0.06, 0.32, 0x26262d, s * 0.36, 0.05, -0.92, 0.3).rotation.y = s * 0.3; // tailplanes
-  }
-  const ears = [];
-  for (const s of [-1, 1]) { const e = softBox(inner, 0.09, 0.3, 0.36, 0x1b1b1f, s * 0.31, 0.12, 0.42); e.rotation.z = s * 0.35; ears.push(e); }
-  const fin = softBox(inner, 0.08, 0.55, 0.42, 0x26262d, 0, 0.42, -0.88, 0.3); fin.rotation.x = -0.45;   // his tail, as the fin
-  const band = new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.05, 8, 22), new THREE.MeshStandardMaterial({ color: 0xc7362b, roughness: 0.5 })); band.position.z = 0.35; inner.add(band);
-  softBox(inner, 0.22, 0.05, 0.6, 0xf2f0ea, 0, -0.29, 0.1);                               // white chest stripe
-  const tongue = softBox(inner, 0.1, 0.03, 0.4, 0xf08a9c, 0.14, -0.14, 0.9); tongue.rotation.y = -1.9; // flapping in the wind
-  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.2, 1.1, 10), new THREE.MeshBasicMaterial({ color: 0xffa02e, transparent: true, opacity: 0.9 }));
-  flame.rotation.x = -Math.PI / 2; flame.position.z = -1.45; inner.add(flame);
-  const core = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.7, 10), new THREE.MeshBasicMaterial({ color: 0xbfe9ff })); core.rotation.x = -Math.PI / 2; core.position.z = -1.25; inner.add(core);
-  g.userData = { inner, flame, core, ears, tongue };
-  return g;
-}
-
 /* ---------- Serious Mode (battle only) ----------
  * When a fight starts everyone becomes an absurdly muscular, smooth, high-poly
  * version of themselves, prowling on all fours. Purely cosmetic. Faces +Z. */
@@ -413,6 +385,23 @@ export function makeSquirrel() {
   const tail = box(g, 0.16, 0.42, 0.16, 0xc47a3a, 0, 0.42, -0.24);
   tail.rotation.x = -0.3;
   g.userData.tail = tail;
+  return g;
+}
+
+export function makeToad() {
+  const g = new THREE.Group();
+  const inner = new THREE.Group(); g.add(inner);
+  softBox(inner, 0.46, 0.26, 0.5, 0x7a6a45, 0, 0.17, 0, 0.45);
+  softBox(inner, 0.4, 0.2, 0.26, 0x857550, 0, 0.24, 0.26, 0.45);          // wide flat head
+  softBox(inner, 0.34, 0.08, 0.3, 0xcfc39a, 0, 0.06, 0.12);                // pale belly
+  for (const s of [-1, 1]) {
+    softBox(inner, 0.1, 0.1, 0.1, 0xd9b84e, s * 0.13, 0.36, 0.3); softBox(inner, 0.05, 0.06, 0.06, 0x0a0a0a, s * 0.13, 0.37, 0.34);
+    softBox(inner, 0.12, 0.09, 0.18, 0x6b5c3a, s * 0.19, 0.3, 0.12);       // the glands dogs should not lick
+    softBox(inner, 0.14, 0.1, 0.3, 0x6b5c3a, s * 0.27, 0.07, -0.14); softBox(inner, 0.1, 0.07, 0.16, 0x6b5c3a, s * 0.22, 0.05, 0.26);
+  }
+  for (const [x, y, z] of [[0.1, 0.31, -0.05], [-0.12, 0.31, 0.04], [0.02, 0.31, -0.17], [-0.06, 0.31, -0.1]]) softBox(inner, 0.07, 0.04, 0.07, 0x5c4f33, x, y, z);
+  g.userData = { inner };
+  g.scale.setScalar(1.15);
   return g;
 }
 

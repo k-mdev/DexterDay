@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {
   mat, box, makeDog, makeDexter, animateDog, RIVAL_LOOKS, makeSquirrel, makeTree, makeRock, makeFlower,
   makeBush, makeHouse, makeBowl, fillBowl, makeTreat, makeDigSpot, TREATS,
-  makeBuffDog, animateBuff, DEXTER_LOOK, makeDexterJet, makeDonkey, makeChicken, FRIEND_LOOKS, makeFarmBits, makeYard,
+  makeBuffDog, animateBuff, DEXTER_LOOK, makeToad, makeDonkey, makeChicken, FRIEND_LOOKS, makeFarmBits, makeYard,
 } from './models.js';
 import { sfx } from './sfx.js';
 import { runBattle, RIVALS } from './battle.js';
@@ -100,12 +100,14 @@ const SEASONS = [
   { name: 'Autumn', icon: '🍂', ground: 0x9c9a52, clearing: 0xaaa35a, water: 0x4a93b8, flowers: 18,
     pines: [[0x2c5f38, 0x336b40, 0x3a7748]], rounds: [[0xd9772b, 0xe89a3c], [0xb8402a, 0xd95f35], [0xe0b23a, 0xedc95a]],
     weather: { color: 0xe08a30, n: 130, fall: 1.6, sway: 2.2, size: 0.21 } },
-  { name: 'Winter', icon: '❄️', ground: 0xe6edf2, clearing: 0xf2f6f9, water: 0xbfe3f2, flowers: 0,
-    pines: [[0x2f6b3c, 0x5f927a, 0xf4f8fb], [0x3a7748, 0xdfeaf0, 0xf4f8fb]], rounds: null,
-    weather: { color: 0xffffff, n: 420, fall: 2.3, sway: 0.8, size: 0.14 } },
+  { name: 'Winter', icon: '🌴', ground: 0x8fbf55, clearing: 0x9fcc60, water: 0x45b5d6, flowers: 90,   // Florida "winter": greener, and hotter
+    pines: [[0x2f7a45, 0x3a8a50, 0x48a05c]], rounds: [[0x4fa84a, 0x6cc05a], [0x3f9648, 0x58b055]], weather: null },
 ];
 const seasonKey = (day) => Math.floor((day - 1) / 2);
 const seasonOf = (day) => SEASONS[seasonKey(day) % SEASONS.length];
+// It's Florida. The seasons change; the temperature only ever goes one way.
+const tempF = (day) => 88 + day;
+const HOTTER = ['It is hot.', 'It is hotter.', 'It is, somehow, hotter still.', 'It is the hottest it has ever been. Again.'];
 function mulberry32(a) {
   return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
@@ -230,13 +232,12 @@ function randomSpot(minR = 4, maxR = 32) {
 /* ---------- State ---------- */
 const S = {
   mode: 'title', day: 1, time: 7, carried: 0, stash: 0, level: 1, xp: 0, hp: 30, maxHp: 30, atk: 6,
-  stamina: 100, grace: 0, best: 0, today: null, nightWarned: false,
+  stamina: 100, grace: 0, woozy: 0, best: 0, today: null, nightWarned: false,
 };
-const dex = { glitch: false, barkT: 0, zoom: false, mesh: makeDexter(), x: 0, y: 0, z: -5, vy: 0, face: 0, move: 0, dig: 0, digSpot: null, wet: false };
+const dex = { glitch: false, barkT: 0, mesh: makeDexter(), x: 0, y: 0, z: -5, vy: 0, face: 0, move: 0, dig: 0, digSpot: null, wet: false };
 dex.mesh.scale.setScalar(1.45);
 scene.add(dex.mesh);
-dex.jet = makeDexterJet(); dex.jet.visible = false; scene.add(dex.jet);
-const treats = [], digs = [], rivals = [];
+const treats = [], digs = [], rivals = [], toads = [];
 let squirrel = null;
 let spawnT = 14, treatT = 6, battleCam = null, hudT = 0, battleBuffs = [];
 
@@ -315,8 +316,42 @@ function clearEntities() {
   for (const t of treats) scene.remove(t.mesh);
   for (const d of digs) scene.remove(d.mesh);
   for (const r of rivals) scene.remove(r.mesh);
-  treats.length = digs.length = rivals.length = 0;
+  for (const t of toads) scene.remove(t.mesh);
+  treats.length = digs.length = rivals.length = toads.length = 0;
   if (squirrel) { scene.remove(squirrel.mesh); squirrel = null; }
+}
+// Cane toads: slow, harmless-looking, and a terrible thing for a dog to lick.
+function spawnToad(byLake) {
+  const p = byLake ? { x: POND.x - POND.r - rand(1, 3), z: POND.z + rand(-4, 5) } : randomSpot(8, 30);
+  const mesh = makeToad();
+  mesh.position.set(p.x, 0, p.z); mesh.rotation.y = rand(0, 6.28); scene.add(mesh);
+  toads.push({ mesh, wait: rand(1, 4), hop: 0, fx: p.x, fz: p.z, tx: p.x, tz: p.z, cd: 0 });
+}
+function updateToads(dt) {
+  for (const t of toads) {
+    const p = t.mesh.position;
+    t.cd = Math.max(0, t.cd - dt);
+    if (t.hop > 0) {
+      t.hop = Math.max(0, t.hop - dt / 0.45);
+      const k = 1 - t.hop;
+      p.x = t.fx + (t.tx - t.fx) * k; p.z = t.fz + (t.tz - t.fz) * k; p.y = Math.sin(k * Math.PI) * 0.55;
+    } else {
+      t.wait -= dt;
+      t.mesh.userData.inner.scale.y = 1 + Math.sin(S.clock * 3 + p.x) * 0.06; // breathing
+      if (t.wait <= 0) {
+        t.wait = rand(1.8, 4.5);
+        const a = rand(0, 6.28), d = rand(0.8, 2);
+        const nx = p.x + Math.cos(a) * d, nz = p.z + Math.sin(a) * d;
+        if (!blocked(nx, nz, 0) && !inWater(nx, nz) && !inHouseZone(nx, nz)) { t.fx = p.x; t.fz = p.z; t.tx = nx; t.tz = nz; t.hop = 1; t.mesh.rotation.y = Math.atan2(nx - p.x, nz - p.z); }
+      }
+    }
+    if (t.cd <= 0 && S.woozy <= 0 && dex.y < 0.4 && near(p.x, p.z, 0.95)) {
+      t.cd = 8; S.woozy = 4.5;
+      S.hp = Math.max(1, S.hp - 5);
+      sfx.derp(); toast('Dexter licked a cane toad. Everything is wobbly. Do not lick the toads.');
+      updateHud();
+    }
+  }
 }
 function placeSquirrel() {
   const p = randomSpot(10, 30);
@@ -448,6 +483,8 @@ function startDay(day) {
   spawnTreat('golden');
   for (let i = 0; i < 4; i++) spawnDig();
   placeSquirrel();
+  for (let i = 0; i < 3; i++) spawnToad(i === 0);
+  S.woozy = 0;
   resetFriends();
   sfx.music('day'); sfx.ambient('day');
   spawnT = Math.max(30, 45 - day * 2); treatT = 6;
@@ -458,7 +495,7 @@ function startDay(day) {
   if (isTouch) $('touch').classList.remove('hidden');
   updateHud();
   const sn = seasonOf(day);
-  toast(day === 1 ? 'Good morning, Dexter! Hop down the porch steps and find some treats.' : newSeason ? `${sn.icon} ${sn.name} has arrived. The yard looks different today.` : `Day ${day}. Another fine ${sn.name.toLowerCase()} day.`);
+  toast(day === 1 ? 'Good morning, Dexter! Hop down the porch steps and find some treats.' : newSeason ? `${sn.icon} ${sn.name} has arrived. ${HOTTER[seasonKey(day) % 4]}` : `Day ${day}. Another fine ${sn.name.toLowerCase()} day.`);
 }
 function endDay(passedOut) {
   const lostCarried = passedOut ? S.carried : 0;
@@ -474,7 +511,8 @@ function endDay(passedOut) {
     <div>Stash change today: <b>${gained >= 0 ? '+' : ''}${gained}</b> 🦴</div>
     <div>Total stash: <b>${S.stash}</b> 🥣</div>
     <div>Rivals sent packing: <b>${S.today.wins}</b> · Treats eaten: <b>${S.today.eaten}</b> · Stolen: <b>${S.today.stolen}</b></div>
-    <div class="rank">Rank: ${rankFor(S.stash)}</div>`;
+    <div class="rank">Rank: ${rankFor(S.stash)}</div>
+    <div class="temp">Today's high: ${tempF(S.day)}°F. Tomorrow: ${tempF(S.day + 1)}°F.</div>`;
   $('summary').classList.remove('hidden');
   S.day += 1;
   writeSave();
@@ -706,6 +744,11 @@ function updateDexter(dt) {
   if (keys.has('KeyA') || keys.has('ArrowLeft')) ix -= 1;
   if (keys.has('KeyD') || keys.has('ArrowRight')) ix += 1;
   ix += stick.x; iz += stick.y;
+  if (S.woozy > 0) { // toad-licked: steering drifts about for a few seconds
+    S.woozy -= dt;
+    const a = Math.sin(S.clock * 4) * 0.9, c = Math.cos(a), sn = Math.sin(a);
+    [ix, iz] = [ix * c - iz * sn, ix * sn + iz * c];
+  }
   let len = Math.hypot(ix, iz);
   if (len > 1) { ix /= len; iz /= len; len = 1; }
   if (dex.dig > 0) {
@@ -717,7 +760,7 @@ function updateDexter(dt) {
   if (wet && !dex.wet) { sfx.splash(); toast('Splash! Zoomies recharge fast in the water.'); }
   dex.wet = wet;
   S.stamina = clamp(S.stamina + (wantZoom ? -28 : wet ? 45 : 13) * dt, 0, 100);
-  const speed = (wantZoom ? 10.5 : 6) * (wet ? 0.7 : 1);
+  const speed = (wantZoom ? 10.5 : 6) * (wet ? 0.7 : 1) * (S.woozy > 0 ? 0.65 : 1);
   if (len > 0.05) {
     const nx = dex.x + ix * speed * dt, nz = dex.z + iz * speed * dt;
     if (!blocked(nx, dex.z, dex.y)) dex.x = nx;
@@ -736,23 +779,7 @@ function updateDexter(dt) {
   dex.mesh.rotation.y = dex.face;
   dex.mesh.rotation.x = dex.dig > 0 ? 0.45 + Math.sin(S.clock * 30) * 0.08 : 0;
   // blink while invulnerable after a battle
-  const show = S.grace <= 0 || Math.floor(S.clock * 12) % 2 === 0;
-  // zoomies: Dexter becomes a small jet until he stops
-  if (wantZoom && !dex.zoom) sfx.jet();
-  dex.zoom = wantZoom;
-  dex.mesh.visible = show && !dex.zoom; dex.jet.visible = show && dex.zoom;
-  if (dex.zoom) {
-    const j = dex.jet, u = j.userData;
-    let turn = Math.atan2(ix, iz) - dex.face;
-    while (turn > Math.PI) turn -= Math.PI * 2; while (turn < -Math.PI) turn += Math.PI * 2;
-    j.position.set(dex.x, dex.y + 0.95 + Math.sin(S.clock * 9) * 0.07, dex.z);
-    j.rotation.y = dex.face;
-    u.inner.rotation.z += (clamp(-turn * 1.6, -0.9, 0.9) - u.inner.rotation.z) * Math.min(1, dt * 8); // bank into turns
-    u.inner.rotation.x = -0.08 + Math.sin(S.clock * 9) * 0.03;
-    u.flame.scale.set(1 + Math.sin(S.clock * 50) * 0.2, 1 + Math.sin(S.clock * 37) * 0.35, 1); u.core.scale.y = 1 + Math.sin(S.clock * 43) * 0.3;
-    u.ears.forEach((e, i) => { e.rotation.x = -0.9 + Math.sin(S.clock * 30 + i) * 0.2; });
-    u.tongue.rotation.z = Math.sin(S.clock * 40) * 0.4;
-  }
+  dex.mesh.visible = S.grace <= 0 || Math.floor(S.clock * 12) % 2 === 0;
 }
 
 function updateTreats(dt) {
@@ -987,6 +1014,7 @@ function updatePlay(dt) {
     updateRivals(dt);
     if (S.mode !== 'play') return;
     updateSquirrel(dt);
+    updateToads(dt);
     updateFriends(dt);
     updateRadar(dt);
     if (S.time >= 19.5) { sfx.music('night'); sfx.ambient('night'); }
@@ -1054,7 +1082,6 @@ function tick(dt) {
     u.inner.position.y += Math.abs(Math.sin(k * Math.PI * 2)) * 0.05;
     if (u.tongue) u.tongue.scale.z = 1.6;
   }
-  if (S.mode !== 'play') dex.jet.visible = false;
   if (S.mode !== 'play' && S.mode !== 'battle') dex.mesh.visible = true;
   updateWeather(dt);
   yard.userData.flames.forEach((f, i) => { f.scale.y = 0.8 + Math.sin(S.clock * (9 + i * 3) + i) * 0.25; f.rotation.y += dt * 3; }); // campfire flicker
@@ -1073,6 +1100,6 @@ if (sv && sv.day > 1) {
   S.best = sv.best || 0;
   $('best').textContent = `Biggest stash: ${S.best} 🦴 · ${rankFor(S.best)}`;
 }
-window.__dexter = { S, dex, rivals, treats, keys, FRIENDS, startBattle, spawnRival, endDay, tick, startDay };
+window.__dexter = { S, dex, rivals, treats, toads, keys, FRIENDS, startBattle, spawnRival, endDay, tick, startDay };
 buildNature(1); // handy for debugging
 requestAnimationFrame(frame);

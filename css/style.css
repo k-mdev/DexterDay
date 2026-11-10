@@ -136,3 +136,5 @@ h2 { margin: 0 0 12px; font-size: 30px; }
 .cine-bar.top { top: 0; } .cine-bar.bottom { bottom: 0; }
 #cine-text { color: #f4f1e8; font-size: clamp(15px, 2.4vw, 22px); font-weight: 700; letter-spacing: .5px; padding: 0 16px; text-align: center; }
 @keyframes cineIn { from { height: 0; } }
+
+#sum-body .temp { font-size: 12px; opacity: .55; margin-top: 4px; }
