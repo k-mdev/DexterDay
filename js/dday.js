@@ -76,14 +76,37 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
   });
 
   /* ---- the landing boat ---- */
-  const boat = new THREE.Group();
-  box(boat, 3.4, 0.3, 6.4, 0x5c6650, 0, 0.15, 0);
-  for (const s of [-1, 1]) box(boat, 0.2, 1.3, 6.4, 0x66705a, s * 1.6, 0.8, 0);
-  box(boat, 3.4, 1.3, 0.2, 0x66705a, 0, 0.8, 3.1);
-  box(boat, 1.2, 1.0, 1.0, 0x4a5340, 0.8, 1.0, 2.4);                                        // wheelhouse
-  const ramp = new THREE.Group(); ramp.position.set(0, 0.3, -3.2); boat.add(ramp);
-  box(ramp, 3.2, 1.9, 0.18, 0x66705a, 0, 0.95, 0);
-  scene.add(boat);
+  const buildBoat = () => {
+    const g = new THREE.Group();
+    box(g, 3.4, 0.3, 6.4, 0x5c6650, 0, 0.15, 0);
+    for (const s of [-1, 1]) box(g, 0.2, 1.3, 6.4, 0x66705a, s * 1.6, 0.8, 0);
+    box(g, 3.4, 1.3, 0.2, 0x66705a, 0, 0.8, 3.1);
+    box(g, 1.2, 1.0, 1.0, 0x4a5340, 0.8, 1.0, 2.4);                                        // wheelhouse
+    const r = new THREE.Group(); r.position.set(0, 0.3, -3.2); g.add(r);
+    box(r, 3.2, 1.9, 0.18, 0x66705a, 0, 0.95, 0);
+    scene.add(g);
+    return { g, ramp: r };
+  };
+  const { g: boat, ramp } = buildBoat();
+  // more landing craft coming in on both sides, dropping their ramps, then backing off for another load
+  const fleet = [-27, -18, -9, 9, 18, 27].map((x, i) => ({ ...buildBoat(), x, z: 40 + i * 9 + rand(0, 6), state: 'in', t: 0 }));
+  // the fleet offshore, hazy on the horizon
+  for (const [x, z, len] of [[-38, 82, 30], [6, 92, 38], [44, 78, 26], [-70, 96, 34], [78, 94, 30]]) {
+    const ship = new THREE.Group(), grey = 0x7f8a90;
+    box(ship, 5, 2.4, len, grey, 0, 1.2, 0); box(ship, 3.6, 2.6, len * 0.3, 0x8a959b, 0, 3.6, 0); box(ship, 2.2, 2, len * 0.12, 0x8a959b, 0, 5.8, 0);
+    const fn = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.9, 3, 8), mat(0x6f797f)); fn.position.set(0, 6.6, -len * 0.12); ship.add(fn);
+    for (const s of [-1, 1]) { box(ship, 2, 1, 2.4, 0x6f797f, 0, 2.9, s * len * 0.32); const b = box(ship, 0.3, 0.3, 4, 0x6f797f, 0, 3.3, s * len * 0.32 - 2.4); b.rotation.x = 0.12; }
+    ship.position.set(x, -0.3, z); ship.rotation.y = Math.PI / 2 + rand(-0.15, 0.15); scene.add(ship);
+  }
+  // barrage balloons tethered over the beachhead
+  const balloons = [];
+  for (const [x, y, z] of [[-24, 15, 20], [-8, 18, 30], [12, 16, 24], [28, 19, 34], [-36, 20, 40], [40, 15, 18]]) {
+    const b = new THREE.Group(), silver = mat(0xc9d0d4, { roughness: 0.35, metalness: 0.3 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), silver); body.scale.set(1.3, 1.2, 3); b.add(body);
+    for (const [fx, fy, rz] of [[0, 0.9, 0], [-0.9, -0.5, 2.1], [0.9, -0.5, -2.1]]) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 6), silver); f.scale.set(0.35, 1.1, 1.3); f.position.set(fx, fy, 2.3); f.rotation.z = rz; b.add(f); }
+    const cable = box(scene, 0.04, y, 0.04, 0x4a4a4a, x, y / 2, z); cable.castShadow = false;
+    b.position.set(x, y, z); scene.add(b); balloons.push({ b, y });
+  }
 
   /* ---- war-torn Dexter: eye scar, camo bandana, military vest, slobber gun mounted ---- */
   const dexMesh = makeDexter();
@@ -144,6 +167,15 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
     box(scene, 0.12, 0.4, 0.12, 0x6b4a2e, 0, TOWN_Y + 3.6, -33); }
   for (const [x, z, sc] of [[-8, -42, 2.6], [9, -41, 2.2], [-34, -40, 2], [35, -42, 2.3], [-3, -56, 2.8], [18, -56, 2.4], [-20, -57, 2.2]]) { const t = makeTree('round', sc); t.position.set(x, TOWN_Y, z); scene.add(t); }
   for (const [x, z, w, ry] of [[-16, -28, 12, 0], [16, -28, 12, 0], [-30, -42, 10, 1.57], [30, -42, 10, 1.57], [0, -53, 18, 0]]) { const h = box(scene, w, 0.9, 0.8, 0x4c8a45, x, TOWN_Y + 0.45, z); h.rotation.y = ry; }
+  const townies = [];
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2, r = 3.2 + (i % 3) * 1.3;
+    const m = makeSquirrel(); m.scale.setScalar(2.1);
+    const flag = new THREE.Group(); box(flag, 0.03, 0.7, 0.03, 0x8a6a48, 0, 0.35, 0); box(flag, 0.3, 0.2, 0.02, [0x3f6f8f, 0xf2f0ea, 0xc7362b][i % 3], 0.16, 0.6, 0);
+    flag.position.set(0.16, 0.2, 0.05); m.add(flag);
+    m.position.set(Math.cos(a) * r, TOWN_Y, -33 + Math.sin(a) * r * 0.8 + 3.5); m.visible = false; scene.add(m);
+    townies.push({ m, flag, ph: i * 0.9 });
+  }
   const mill = new THREE.Group();
   { const tg = new THREE.CylinderGeometry(1, 1.6, 5, 8); const tw = new THREE.Mesh(tg, mat(0xe6dcc2)); tw.position.y = 2.5; tw.castShadow = true; mill.add(tw);
     const cg = new THREE.ConeGeometry(1.25, 1.4, 8); const c = new THREE.Mesh(cg, mat(0x8b3f33)); c.position.y = 5.7; mill.add(c); }
@@ -255,15 +287,50 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
     if (allyT <= 0 && st.phase !== 'off') {
       allyT = rand(0.7, 1.9);
       const a = allies.find((o) => !o.active);
-      if (a) { a.active = true; a.out = 0; a.x = rand(-22, 22); a.z = SHORE_Z + rand(0.5, 2.5); a.sp = rand(6.5, 9.5); a.mesh.visible = true; a.mesh.scale.setScalar(a.base); }
+      const landed = fleet.filter((f) => f.state === 'landed');
+      if (a) {
+        const from = landed.length ? landed[Math.floor(Math.random() * landed.length)] : null; // they pour out of whichever boat has its ramp down
+        a.active = true; a.out = 0; a.inland = false; a.y = 0;
+        a.x = from ? from.x + rand(-1, 1) : rand(-22, 22); a.z = SHORE_Z + rand(0.5, 2.5);
+        a.gap = [-18.5, -12, -6, 0, 6, 12, 18.5].reduce((m, g) => (Math.abs(g - a.x) < Math.abs(m - a.x) ? g : m), 99);
+        a.tx = rand(-24, 24); a.tz = rand(-44, -29);
+        a.sp = rand(6.5, 9.5); a.mesh.visible = true; a.mesh.scale.setScalar(a.base);
+      }
     }
+    const won = st.phase === 'end';
     for (const a of allies) {
       if (!a.active) continue;
+      if (won) {
+        // the beach is taken: through the gaps between the bunkers, up the bluff and into town
+        if (a.inland) { a.mesh.position.set(a.x, TOWN_Y, a.z); animateDog(a.mesh, st.clock, 0, 1); continue; }
+        const goalX = a.z > -22 ? a.gap : a.tx, dx = goalX - a.x;
+        const vx = clamp(dx * 1.5, -5, 5);
+        a.x += vx * dt; a.z -= a.sp * 0.8 * dt;
+        a.y = clamp((-19 - a.z) / 3, 0, 1) * TOWN_Y;
+        a.mesh.position.set(a.x, a.y, a.z); a.mesh.rotation.y = Math.atan2(vx, -a.sp * 0.8); a.mesh.scale.setScalar(a.base);
+        animateDog(a.mesh, st.clock, 1.2, 1);
+        if (a.z < a.tz) { a.inland = true; a.mesh.rotation.y = rand(-0.6, 0.6); }
+        continue;
+      }
       const vx = Math.sin(st.clock * 1.3 + a.wob) * 1.6;
       a.z -= a.sp * dt; a.x += vx * dt;
       a.mesh.position.set(a.x, 0, a.z); a.mesh.rotation.y = Math.atan2(vx, -a.sp);
       animateDog(a.mesh, st.clock, 1.2, 1);
-      if (a.z < -13.5) { a.out += dt / 0.35; a.mesh.scale.setScalar(a.base * Math.max(0.01, 1 - a.out)); if (a.out >= 1) { a.active = false; a.mesh.visible = false; } } // gone
+      if (a.z < -13.5) { a.out += dt / 0.35; a.mesh.scale.setScalar(a.base * Math.max(0.01, 1 - a.out)); if (a.out >= 1) { a.active = false; a.mesh.visible = false; } } // gone into the smoke
+    }
+    // the landing craft in the background
+    for (const f of fleet) {
+      f.t += dt;
+      if (f.state === 'in') { f.z -= 5 * dt; if (f.z <= SHORE_Z + 3.6) { f.z = SHORE_Z + 3.6; f.state = 'landed'; f.t = 0; } }
+      else if (f.state === 'landed') { f.ramp.rotation.x = -Math.min(1, f.t / 0.6) * 1.75; if (f.t > 5) { f.state = 'out'; f.t = 0; } }
+      else { f.ramp.rotation.x = -Math.max(0, 1 - f.t / 0.6) * 1.75; f.z += 4 * dt; if (f.z > 58 + Math.abs(f.x)) { f.state = 'in'; f.t = 0; } }
+      f.g.position.set(f.x, -0.1 + Math.sin(st.clock * 2.2 + f.x) * 0.08, f.z); f.g.rotation.z = Math.sin(st.clock * 1.6 + f.x) * 0.03;
+    }
+    balloons.forEach((o, i) => { o.b.position.y = o.y + Math.sin(st.clock * 0.6 + i) * 0.4; o.b.rotation.y = Math.sin(st.clock * 0.25 + i) * 0.3; });
+    // the townsfolk come out once the dogs reach the square
+    for (const tw of townies) {
+      tw.m.visible = won && st.t > 8.5;
+      if (tw.m.visible) { tw.m.position.y = TOWN_Y + Math.abs(Math.sin(st.clock * 5 + tw.ph)) * 0.45; tw.flag.rotation.z = Math.sin(st.clock * 8 + tw.ph) * 0.6; tw.m.rotation.y = Math.sin(st.clock * 0.8 + tw.ph) * 0.8; }
     }
     // distant gunfire: a quiet rattle plus a tracer streaking overhead
     gunT -= dt;
@@ -338,6 +405,15 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
   let globs = [], acorns = [];
   const st = { phase: 'off', t: 0, x: 0, y: 0, z: 0, face: Math.PI, move: 0, hp: MAX_HP, count: 0, fireT: 0, hurt: 0, boatZ: 36, clock: 0 };
 
+  // The ending follows what really happened after the landings, with our cast.
+  const CARD_T = 5.2;
+  const EPILOGUE = [
+    'The beach is secure. Ten squirrels, thoroughly slobbered.',
+    'By nightfall the dogs held the shoreline. Boats kept landing all along the coast, and barrage balloons went up over the beach.',
+    'They pushed inland off the sand. The first town was freed the very next morning, and its squirrels came out to cheer.',
+    'It was only the beginning. The fight for Normandy went on all summer, and the capital was not freed until late August.',
+    'On June 6, 1944, about 156,000 Allied troops landed on five beaches in Normandy. Thousands never came home. Remembered with respect.',
+  ];
   const caption = (text) => { $('dday-cap').textContent = text; };
   const hud = () => {
     const bars = Math.max(0, Math.round((st.hp / MAX_HP) * 8));
@@ -348,6 +424,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
     for (const g of globs) scene.remove(g.mesh); for (const a of acorns) scene.remove(a.mesh);
     globs = []; acorns = [];
     for (const a of allies) { a.active = false; a.mesh.visible = false; }
+    fleet.forEach((f, i) => { f.state = 'in'; f.z = 40 + i * 9 + rand(0, 6); f.t = 0; f.ramp.rotation.x = 0; });
     for (const c of crew) { c.gone = false; c.out = 0; c.mesh.visible = true; c.mesh.scale.setScalar(c.base); c.mesh.rotation.set(0, Math.PI, 0); }
     buddy.down = 0; stars.visible = false; bonk.visible = false;
     for (const b of bombs) { b.active = false; b.mesh.visible = false; }
@@ -468,7 +545,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
             gone = true; s.hp--; s.hit = 0.25; sfx.squeak();
             if (s.hp <= 0) {
               s.done = true; s.flag.visible = true; s.goo.visible = true; st.count++; sfx.pickup(); hud();
-              if (st.count >= TOTAL) { st.phase = 'end'; st.t = 0; caption('The beach is secure. Ten squirrels, thoroughly slobbered. Squirrel Normandy is free.'); sfx.win(); }
+              if (st.count >= TOTAL) { st.phase = 'end'; st.t = 0; st.card = -1; sfx.win(); }
             }
           }
         }
@@ -489,7 +566,14 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
         if (st.phase === 'end') { buddy.down = Math.max(0.001, buddy.down - dt * 1.5); stars.visible = false; buddy.mesh.rotation.set(-buddy.down * 1.5, LIE_YAW, 0); buddy.mesh.position.y = 0; animateDog(buddy.mesh, st.clock, 0, 1); }
         else { animateDog(buddy.mesh, st.clock, 0, 0.15); stars.position.set(buddy.x + 1.35, 1.0, buddy.z + 1.35); stars.rotation.y += dt * 4; }
       }
-      if (st.phase === 'end' && st.t > 5.5) { st.phase = 'off'; onEnd(); }
+      if (st.phase === 'end') {
+        const card = Math.min(EPILOGUE.length, Math.floor(st.t / CARD_T));
+        if (card !== st.card && card < EPILOGUE.length) { st.card = card; caption(EPILOGUE[card]); }
+        const skip = fireHeld();                                  // Space / fire skips to the next card
+        if (skip && !st.skipHeld && st.t > 1) st.t = (card + 1) * CARD_T;
+        st.skipHeld = skip;
+        if (st.t >= EPILOGUE.length * CARD_T) { st.phase = 'off'; onEnd(); }
+      }
     }
     st.hurt = Math.max(0, st.hurt - dt);
     dexMesh.position.set(st.x, st.y, st.z);
@@ -515,7 +599,15 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
       if (t < 4.6) { want.set(st.x + 4.6, 2.0, st.z - 5.2); look.set(st.x - 0.6, 1.3, st.z - 0.6); return t < 3.1; }             // Dexter looks over
       want.set(st.x + 0.7, 1.75, st.z - 5.6 + (t - 4.6) * 0.7); look.set(st.x, 1.6, st.z); return t < 4.7; // slow push-in on the scarred stare
     }
-    else if (st.phase === 'end') { want.set(st.x * 0.4, 13 + st.t * 1.2, st.z + 14 - st.t * 2); look.set(0, 3, -34); } // rise to reveal the town
+    else if (st.phase === 'end') {
+      const c = Math.min(EPILOGUE.length - 1, Math.floor(st.t / CARD_T)), k = st.t - c * CARD_T, cutNow = k < 0.08 && c > 0;
+      if (c === 0) { want.set(st.x * 0.5, 9 + k * 0.6, st.z + 12); look.set(st.x * 0.5, 1.5, -16); }                 // the white flags
+      else if (c === 1) { want.set(-30 + k * 1.2, 10, SHORE_Z + 4); look.set(4, 4, SHORE_Z + 14); }                  // boats and balloons along the shore
+      else if (c === 2) { want.set(13 - k * 0.8, TOWN_Y + 6, -21); look.set(0, TOWN_Y + 1.5, -33); }                 // the town square
+      else if (c === 3) { want.set(0, 20 + k * 1.5, -8); look.set(0, 3, -44); }                                      // inland, over the rooftops
+      else { want.set(0, 34 + k, SHORE_Z + 34 + k * 1.5); look.set(0, 0, -18); }                                     // the whole beach, pulling away
+      return cutNow;
+    }
     else { want.set(st.x * 0.85, 9, st.z + 11.5); look.set(st.x, 1.2, st.z - 5); }
   }
 
