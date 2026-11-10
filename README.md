@@ -28,8 +28,8 @@ then open <http://localhost:8791>. (It must be served over HTTP; opening `index.
 
 - **Treats** spawn around the clearing. Carried treats can be stolen; treats stashed in the bowl by the porch are safe-ish.
 - **Treats are also health.** Eating one restores confidence, so every treat is a choice: eat it or bank it.
-- **Rivals** (Peanut, Otis, Maggie, Bella, Koda and Bandit the raccoon) snatch a treat if they catch you carrying, or raid the bowl if you're not home. Battles are opt-in: walk up to a rival and press E to challenge them and win the loot back.
-- **Battles**: Slobber (ruins their aim), Whine (guilt lowers their attack), Bark (reliable damage), Duh (anything could happen). Or eat a treat, bribe your way out with one, or run. Each move gets a face cut-in and the camera cuts between shots.
+- **Rivals** (Peanut, Otis, Maggie, Bella, Koda and Bandit the raccoon) occasionally snatch a treat if they catch you carrying, or raid the bowl if you're not home; a short cutscene shows who took what. Battles are opt-in: walk up to a rival and press E to challenge them and win the loot back.
+- **Battles**: Slobber (ruins their aim), Whine (guilt lowers their attack), Bark (reliable damage), Duh (anything could happen). Or eat a treat, bribe your way out with one, or run. Fighters prowl and circle each other on all fours, each move gets a 3D isometric portrait banner, and the camera cuts between shots.
 - **DexDetector**: a sweep radar that pings rival dogs (with a very quiet bark) as the line passes them.
 - **Friends down the street** tag along for 30 seconds: the chickens fetch nearby treats, Hank the donkey punts rivals into the forest, Hamlet the pig roots up snacks. Each also helps at the start of a battle.
 - **Extras**: dig spots, a squirrel worth chasing, a pond and kiddie pool that recharge zoomies, XP and levels, a day/night cycle, and a bed on the porch to end the day (rivals can't get onto the porch). Progress saves at the end of each day.
@@ -40,5 +40,6 @@ Plain HTML/CSS/ES modules with [three.js](https://threejs.org) from a CDN. All m
 
 - `js/main.js` — world, game loop, rivals, friends, day flow
 - `js/battle.js` — turn-based battle system
+- `js/cutin.js` — 3D isometric portrait for the attack banners
 - `js/models.js` — every model, including Serious Mode
 - `js/sfx.js` — sound effects, music sequencer, ambience

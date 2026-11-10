@@ -361,7 +361,7 @@ function startDay(day) {
   placeSquirrel();
   resetFriends();
   sfx.music('day'); sfx.ambient('day');
-  spawnT = Math.max(14, 24 - day); treatT = 6;
+  spawnT = Math.max(30, 45 - day * 2); treatT = 6;
   Object.assign(dex, { x: BED.x, y: PORCH_H, z: BED.z + 0.95, vy: 0, face: 0, dig: 0, digSpot: null });
   S.mode = 'play';
   for (const id of ['title', 'summary', 'help']) $(id).classList.add('hidden');
@@ -394,7 +394,7 @@ function endDay(passedOut) {
 
 /* ---------- Battles ---------- */
 function project(obj) {
-  const v = obj.position.clone(); v.y += obj.userData.popY ?? 1.3;
+  const v = obj.getWorldPosition(new THREE.Vector3()); v.y += obj.userData.popY ?? 1.3;
   v.project(camera);
   return { x: (v.x * 0.5 + 0.5) * window.innerWidth, y: (-v.y * 0.5 + 0.5) * window.innerHeight };
 }
@@ -403,28 +403,54 @@ async function startBattle(e) {
   $('hud').classList.add('hidden'); $('touch').classList.add('hidden'); $('prompt').classList.add('hidden');
   let dx = e.mesh.position.x - dex.x, dz = e.mesh.position.z - dex.z;
   const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+  const SEP = 6.4, t0 = S.clock;
   dex.y = 0; dex.dig = 0;
   dex.mesh.position.set(dex.x, 0, dex.z);
   dex.mesh.rotation.set(0, Math.atan2(dx, dz), 0);
-  e.mesh.position.set(dex.x + dx * 4.5, 0, dex.z + dz * 4.5);
+  e.mesh.position.set(dex.x + dx * SEP, 0, dex.z + dz * SEP);
   e.mesh.rotation.set(0, Math.atan2(-dx, -dz), 0);
-  const px = -dz, pz = dx; // perpendicular
-  const dPos = new THREE.Vector3(dex.x, 0, dex.z), fPos = new THREE.Vector3(dex.x + dx * 4.5, 0, dex.z + dz * 4.5);
-  const mid = dPos.clone().lerp(fPos, 0.5);
+
+  // Serious Mode: swap in the absurdly muscular models for the duration of the fight.
+  // Both live in an "arena" group that slowly turns, so the fighters circle each other
+  // while the battle code keeps treating their local positions as fixed home spots.
+  const look = RIVAL_LOOKS[e.key];
+  const mid = new THREE.Vector3(dex.x + dx * SEP / 2, 0, dex.z + dz * SEP / 2);
+  const arena = new THREE.Group(); arena.position.copy(mid);
+  const buffDex = makeBuffDog(DEXTER_LOOK);
+  const buffFoe = makeBuffDog(look);
+  buffDex.position.set(-dx * SEP / 2, 0, -dz * SEP / 2); buffDex.rotation.y = Math.atan2(dx, dz);
+  buffFoe.position.set(dx * SEP / 2, 0, dz * SEP / 2); buffFoe.rotation.y = Math.atan2(-dx, -dz);
+  buffFoe.scale.setScalar(0.72 + 0.34 * (look.scale ?? 1));
+  buffFoe.userData.popY = 2.7 * buffFoe.scale.x;
+  arena.add(buffDex, buffFoe);
+  battleBuffs = [buffDex, buffFoe];
+
+  // live frame of reference, refreshed every frame because the fighters keep moving
+  const dPos = new THREE.Vector3(), fPos = new THREE.Vector3();
+  let px = -dz, pz = dx;
+  const update = () => {
+    const t = S.clock - t0;
+    arena.rotation.y = Math.sin(t * 0.33) * 0.55 + t * 0.13; // sway back and forth while drifting round
+    arena.updateMatrixWorld(true);
+    buffDex.getWorldPosition(dPos); buffFoe.getWorldPosition(fPos); dPos.y = fPos.y = 0;
+    dx = fPos.x - dPos.x; dz = fPos.z - dPos.z;
+    const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; px = -dz; pz = dx;
+  };
+  update();
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   const along = (o, a, b, h) => V(o.x + dx * a + px * b, h, o.z + dz * a + pz * b);
-  // Every shot is { pos(t), look(t) } so it can drift, push in or orbit while it is on screen.
+  // Every shot is (t) => [position, lookAt] so it can drift, push in or orbit while it is on screen.
   const SHOTS = {
-    wide: (t) => { const a = Math.sin(t * 0.35) * 0.55 + 0.9, r = 8.2; return [V(mid.x + (px * Math.cos(a) - dx * Math.sin(a)) * r, 3.1 + Math.sin(t * 0.5) * 0.4, mid.z + (pz * Math.cos(a) - dz * Math.sin(a)) * r), V(mid.x, 1.6, mid.z)]; },
-    dex: (t) => [along(dPos, 4.9 - Math.min(t, 2) * 0.45, 2.0, 1.2), V(dPos.x, 1.95, dPos.z)],           // low-angle hero push-in
-    foe: (t) => [along(fPos, -4.9 + Math.min(t, 2) * 0.45, -2.0, 1.2), V(fPos.x, 1.8, fPos.z)],
-    overDex: (t) => [along(dPos, -2.6, 1.5 - t * 0.15, 3.0), V(fPos.x, 1.7, fPos.z)],                    // over Dexter's shoulder
-    overFoe: (t) => [along(fPos, 2.6, -1.5 + t * 0.15, 3.0), V(dPos.x, 1.7, dPos.z)],
-    side: (t) => [along(mid, t * 0.25 - 0.4, 6.4, 1.9), V(mid.x, 1.6, mid.z)],                           // tracking profile shot
-    top: (t) => [along(mid, 0, 0.6, 9.5 - Math.min(t, 3) * 0.5), V(mid.x, 0.5, mid.z)],
-    victory: (t) => { const a = t * 0.6; return [V(dPos.x + Math.sin(a) * 5, 1.3, dPos.z + Math.cos(a) * 5), V(dPos.x, 1.9, dPos.z)]; },
+    wide: (t) => { const a = Math.sin(t * 0.35) * 0.55 + 0.9, r = 10; return [V(mid.x + (px * Math.cos(a) - dx * Math.sin(a)) * r, 3.0 + Math.sin(t * 0.5) * 0.4, mid.z + (pz * Math.cos(a) - dz * Math.sin(a)) * r), V(mid.x, 1.2, mid.z)]; },
+    dex: (t) => [along(dPos, 5.4 - Math.min(t, 2) * 0.45, 2.6, 1.0), V(dPos.x, 1.5, dPos.z)],            // low-angle hero push-in
+    foe: (t) => [along(fPos, -5.4 + Math.min(t, 2) * 0.45, -2.6, 1.0), V(fPos.x, 1.4, fPos.z)],
+    overDex: (t) => [along(dPos, -3.6, 2.0 - t * 0.15, 3.2), V(fPos.x, 1.2, fPos.z)],                    // over Dexter's shoulder
+    overFoe: (t) => [along(fPos, 3.6, -2.0 + t * 0.15, 3.2), V(dPos.x, 1.2, dPos.z)],
+    side: (t) => [along(mid, t * 0.25 - 0.4, 8, 1.7), V(mid.x, 1.2, mid.z)],                             // tracking profile shot
+    top: (t) => [along(mid, 0, 0.6, 11.5 - Math.min(t, 3) * 0.5), V(mid.x, 0.5, mid.z)],
+    victory: (t) => { const a = t * 0.6; return [V(dPos.x + Math.sin(a) * 5.5, 1.1, dPos.z + Math.cos(a) * 5.5), V(dPos.x, 1.5, dPos.z)]; },
   };
-  battleCam = { shot: 'foe', t0: S.clock, snap: true, shake: 0, SHOTS };
+  battleCam = { shot: 'foe', t0: S.clock, snap: true, shake: 0, SHOTS, update };
   const camApi = {
     shot(name, snap = true) { if (battleCam && battleCam.shot !== name) Object.assign(battleCam, { shot: name, t0: S.clock, snap }); },
     shake(amt = 0.5) { if (battleCam) battleCam.shake = amt; },
@@ -434,26 +460,17 @@ async function startBattle(e) {
   const glitch = () => {
     [1, 0, 1, 1, 0, 1, 0, 1, 1, 0].forEach((low, i) => setTimeout(() => {
       if (S.mode !== 'battle' || !battleBuffs.length) return;
-      dex.mesh.position.set(buffDex.position.x, 0, buffDex.position.z);
+      dex.mesh.position.set(dPos.x, 0, dPos.z); dex.mesh.rotation.y = Math.atan2(dx, dz);
       dex.mesh.visible = !!low; buffDex.visible = !low; dex.glitch = !!low;
     }, i * 85));
   };
-  // Serious Mode: swap in the absurdly muscular models for the duration of the fight
-  const look = RIVAL_LOOKS[e.key];
-  const buffDex = makeBuffDog(DEXTER_LOOK);
-  const buffFoe = makeBuffDog(look);
-  buffDex.position.copy(dex.mesh.position); buffDex.rotation.y = dex.mesh.rotation.y;
-  buffFoe.position.copy(e.mesh.position); buffFoe.rotation.y = e.mesh.rotation.y;
-  buffFoe.scale.setScalar(0.72 + 0.34 * (look.scale ?? 1));
-  buffFoe.userData.popY = 3 * buffFoe.scale.x;
-  battleBuffs = [buffDex, buffFoe];
-  for (const t of trees) t.mesh.visible = Math.hypot(t.x - (dex.x + dx * 2), t.z - (dex.z + dz * 2)) > 9; // clear the arena
-  setTimeout(() => { if (S.mode !== 'battle') return; scene.add(buffDex, buffFoe); dex.mesh.visible = false; e.mesh.visible = false; }, 280); // hidden by the flash
+  for (const t of trees) t.mesh.visible = Math.hypot(t.x - mid.x, t.z - mid.z) > 11; // clear the arena
+  setTimeout(() => { if (S.mode !== 'battle') return; scene.add(arena); dex.mesh.visible = false; e.mesh.visible = false; }, 280); // hidden by the flash
   const friend = activeFriend();
   sfx.music('battle');
   const result = await runBattle({ state: S, enemy: e, dexMesh: buffDex, foeMesh: buffFoe, project, refresh: () => {}, friend: friend ? friend.kind : null, cam: camApi, glitch });
   dex.glitch = false;
-  scene.remove(buffDex, buffFoe); battleBuffs = [];
+  scene.remove(arena); battleBuffs = [];
   for (const t of trees) t.mesh.visible = true;
   dex.mesh.visible = true; e.mesh.visible = true;
   sfx.music(S.time >= 19.5 ? 'night' : 'day');
@@ -661,11 +678,51 @@ function pushOutOfHouse(p) {
   }
 }
 
+/* ---------- Theft cutscene ----------
+ * Rather than piling on toasts and alarms, a theft pauses play for a moment and the
+ * camera cuts to the culprit: one calm beat that tells you who took what. */
+let cut = null;
+function startCutscene(e, kind, n) {
+  S.mode = 'cutscene';
+  cut = { e, kind, t: 0, dur: kind === 'bowl' ? 3.2 : 2.4, snap: true };
+  keys.clear();
+  $('hud').classList.add('hidden'); $('touch').classList.add('hidden'); $('prompt').classList.add('hidden');
+  $('cine-text').textContent = kind === 'bowl'
+    ? `${e.name} raided the bowl and took ${n} treat${n > 1 ? 's' : ''}.`
+    : `${e.name} snatched a treat from Dexter.`;
+  $('cine').classList.remove('hidden');
+  if (kind === 'bowl') sfx.chomp(); else sfx.swipe();
+}
+function updateCutscene(dt) {
+  const e = cut.e, p = e.mesh.position;
+  cut.t += dt;
+  const from = cut.kind === 'bowl' ? BOWL : dex;
+  if (cut.kind === 'bowl' && cut.t < 1.6) {
+    // face in the bowl, munching
+    e.mesh.rotation.y = Math.atan2(BOWL.x - p.x, BOWL.z - p.z);
+    animateDog(e.mesh, S.clock, 0, 1);
+    e.mesh.userData.head.rotation.x = 0.55 + Math.sin(S.clock * 18) * 0.2;
+    if (Math.floor(cut.t * 3) !== Math.floor((cut.t - dt) * 3)) sfx.chomp();
+  } else {
+    if (!cut.ran) { cut.ran = true; sfx[RIVALS[e.key].cry](); }
+    let dx = p.x - from.x, dz = p.z - from.z; const d = Math.hypot(dx, dz) || 1;
+    p.x += (dx / d) * e.speed * 0.9 * dt; p.z += (dz / d) * e.speed * 0.9 * dt;
+    pushOutOfHouse(p);
+    e.mesh.rotation.y = Math.atan2(dx, dz);
+    animateDog(e.mesh, S.clock, 1.2, 1);
+  }
+  if (cut.t >= cut.dur) {
+    cut = null; S.mode = 'play'; S.grace = 1;
+    $('cine').classList.add('hidden'); $('hud').classList.remove('hidden');
+    if (isTouch) $('touch').classList.remove('hidden');
+  }
+}
+
 function updateRivals(dt) {
-  spawnT -= dt * (S.time >= 19 ? 1.7 : 1);
-  const maxRivals = Math.min(4, 1 + Math.floor((S.day + 1) / 2));
+  spawnT -= dt * (S.time >= 19 ? 1.4 : 1);
+  const maxRivals = Math.min(3, 1 + Math.floor(S.day / 3));
   if (spawnT <= 0) {
-    spawnT = Math.max(16, 36 - S.day * 2) + rand(0, 8);
+    spawnT = Math.max(32, 60 - S.day * 3) + rand(0, 15);
     if (rivals.filter((r) => r.state !== 'flee' && r.state !== 'launched').length < maxRivals) spawnRival();
   }
   for (let i = rivals.length - 1; i >= 0; i--) {
@@ -690,14 +747,15 @@ function updateRivals(dt) {
       }
     } else if (S.carried > 0 && dDex < 13 && dex.y < 0.4) {
       tx = dex.x; tz = dex.z;
-      if (!e.alerted) { e.alerted = true; sfx[RIVALS[e.key].cry](); toast(`${e.name} has spotted your treats!`); }
+      if (!e.alerted) { e.alerted = true; sfx[RIVALS[e.key].cry](); }
     } else if (S.stash > 0) {
       tx = BOWL.x; tz = BOWL.z; sp *= 0.75; e.alerted = false;
       if (Math.hypot(p.x - BOWL.x, p.z - BOWL.z) < 1.4) {
         const n = Math.min(S.stash, 2 + Math.floor(S.day / 2));
         S.stash -= n; e.loot += n; e.state = 'flee';
-        sfx.alert(); toast(`${e.name} raided your bowl! -${n} 🦴  Catch them!`);
         updateHud();
+        startCutscene(e, 'bowl', n);
+        return;
       }
     } else {
       e.wt -= dt; e.alerted = false;
@@ -714,12 +772,12 @@ function updateRivals(dt) {
     animateDog(e.mesh, S.clock, e.move, e.state === 'flee' ? 0 : 0.6);
     const canFight = !e.beaten && S.grace <= 0 && dex.y < 0.4 && dex.dig <= 0;
     if (canFight && e.state !== 'flee' && dDex < 1.25 && S.mode === 'play') {
-      if (Math.random() < 0.12) { toast(`${e.name} ambushes Dexter!`); startBattle(e); return; } // rare forced fight
+      if (Math.random() < 0.05) { toast(`${e.name} ambushes Dexter!`); startBattle(e); return; } // very rare forced fight
       if (S.carried > 0) {
-        S.carried--; e.loot++; e.state = 'flee'; S.grace = 1.5;
-        sfx.swipe(); sfx[RIVALS[e.key].cry]();
-        toast(`${e.name} snatched a treat and bolted! Catch up and press E to challenge.`);
+        S.carried--; e.loot++; e.state = 'flee';
         updateHud();
+        startCutscene(e, 'dex', 1);
+        return;
       }
     }
   }
@@ -837,6 +895,7 @@ function updateCamera(dt) {
     camWant.set(Math.sin(a) * 26, 11, -8 + Math.cos(a) * 26 * 0.6 + 14);
     lookWant.set(0, 2.5, -12);
   } else if (battleCam) {
+    battleCam.update();
     const [p, l] = battleCam.SHOTS[battleCam.shot](S.clock - battleCam.t0);
     camWant.copy(p); lookWant.copy(l);
     if (battleCam.snap) { camera.position.copy(p); camLook.copy(l); battleCam.snap = false; } // hard cut
@@ -845,6 +904,11 @@ function updateCamera(dt) {
       camera.position.x += (Math.random() - 0.5) * battleCam.shake; camera.position.y += (Math.random() - 0.5) * battleCam.shake * 0.6;
       battleCam.shake *= Math.pow(0.02, dt);
     }
+  }
+  else if (cut) {
+    const p = cut.e.mesh.position;
+    camWant.set(p.x + 2.4 - cut.t * 0.3, 2.3, p.z + 4.8 - cut.t * 0.25); lookWant.set(p.x, 0.7, p.z); // slow push-in on the thief
+    if (cut.snap) { camera.position.copy(camWant); camLook.copy(lookWant); cut.snap = false; }
   }
   else { camWant.set(dex.x, dex.y + 8, dex.z + 9.5); lookWant.set(dex.x, dex.y + 1, dex.z); }
   const k = Math.min(1, dt * (battleCam ? 5 : 6));
@@ -863,6 +927,7 @@ function frame(now) {
 function tick(dt) {
   S.clock += dt;
   if (S.mode === 'play') updatePlay(dt);
+  else if (S.mode === 'cutscene') updateCutscene(dt);
   if (S.mode === 'title') { dex.mesh.position.set(0, 0, -5); dex.mesh.rotation.y = Math.sin(S.clock * 0.5) * 0.5; }
   if (S.mode === 'battle') { for (const r of rivals) animateDog(r.mesh, S.clock, 0, 0.5); for (const b of battleBuffs) animateBuff(b, S.clock); }
   animateDog(dex.mesh, S.clock, S.mode === 'play' ? dex.move : dex.glitch ? 1.3 : 0, S.mode === 'battle' ? 0.2 : 0.7);

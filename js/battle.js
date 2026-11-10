@@ -1,5 +1,6 @@
 // Turn-based "confidence" battles. Nobody gets hurt; the loser just slinks off embarrassed.
 import { sfx } from './sfx.js';
+import { playCutin } from './cutin.js';
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -74,7 +75,7 @@ const DUH_LINES = [
   'Dexter looks behind him for the dog everyone is mad at.',
 ];
 
-/* ---------- Attack cut-in: Dexter's face, one expression per move ---------- */
+/* ---------- Attack cut-in fallback: a flat drawing, used only if the 3D portrait (cutin.js) can't start ---------- */
 function dexFace(kind) {
   const fur = '#26262d', dark = '#17171b';
   const eye = (cx, cy, r = 13, ir = 8, dx = 0, dy = 0) =>
@@ -206,7 +207,7 @@ export async function runBattle(ctx) {
   };
   const cutin = async (kind, label, color) => {
     const wrap = $('b-cutin'), band = wrap.firstElementChild;
-    $('ci-face').innerHTML = dexFace(kind);
+    if (!playCutin(kind, $('ci-face'), 950)) $('ci-face').innerHTML = dexFace(kind); // flat drawing only as a fallback
     $('ci-name').textContent = label;
     band.style.setProperty('--ci', color);
     wrap.classList.remove('hidden');

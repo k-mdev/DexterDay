@@ -208,10 +208,11 @@ export function makeDexter() {
 
 /* ---------- Serious Mode (battle only) ----------
  * When a fight starts everyone becomes an absurdly muscular, smooth, high-poly
- * biped. Purely cosmetic. Faces +Z like the normal models. */
+ * version of themselves, prowling on all fours. Purely cosmetic. Faces +Z. */
 export function makeBuffDog(look = {}) {
   const c = { color: 0x1c1c20, chest: null, snoutColor: null, chin: null, eye: 0x6b3a12, ear: 'floppy', earColor: null, collar: null, tag: false, mask: false, fluffy: false, snout: 0.3, ...look };
   const g = new THREE.Group();
+  const inner = new THREE.Group(); g.add(inner);
   const baseCol = new THREE.Color(c.color);
   if (baseCol.getHSL({}).l < 0.2) baseCol.offsetHSL(0, 0, 0.07); // let the muscles catch light on black fur
   const skin = new THREE.MeshStandardMaterial({ color: baseCol, roughness: 0.36, metalness: 0.08 });
@@ -227,80 +228,96 @@ export function makeBuffDog(look = {}) {
   const sp = (parent, r, x, y, z, sx, sy, sz, m = skin) => add(parent, new THREE.SphereGeometry(r, 28, 20), m, x, y, z, sx, sy, sz);
   const cap = (parent, r, len, x, y, z, m = skin) => add(parent, new THREE.CapsuleGeometry(r, len, 8, 20), m, x, y, z);
 
-  // legs
+  // torso: deep chest, tucked waist, big haunches
+  const chest = sp(inner, 0.56, 0, 1.2, 0.45, 1.05, 1.02, 1.12);
+  sp(inner, 0.42, 0, 1.18, -0.3, 0.88, 0.82, 1.35);                 // waist
   for (const s of [-1, 1]) {
-    cap(g, 0.21, 0.36, s * 0.27, 0.86, 0);
-    sp(g, 0.2, s * 0.3, 0.9, 0.1, 0.9, 1.3, 0.8);            // quad
-    cap(g, 0.13, 0.3, s * 0.27, 0.34, -0.04);
-    sp(g, 0.17, s * 0.27, 0.42, -0.14, 0.8, 1.2, 0.8);        // calf
-    sp(g, 0.18, s * 0.27, 0.09, 0.1, 1, 0.55, 1.5);           // paw
+    sp(inner, 0.28, s * 0.22, 1.02, 0.9, 1.05, 0.9, 0.75);          // pecs
+    sp(inner, 0.33, s * 0.44, 1.42, 0.5, 0.85, 1.0, 1.1);           // shoulder hump
+    sp(inner, 0.24, s * 0.17, 1.62, 0.3, 1.0, 0.7, 1.6);            // back / traps
+    sp(inner, 0.2, s * 0.15, 1.5, -0.35, 1.0, 0.6, 1.8);            // spinal erectors
+    sp(inner, 0.4, s * 0.27, 1.16, -0.8, 0.9, 1.0, 1.05);           // haunch
+    for (let i = 0; i < 3; i++) sp(inner, 0.09, s * 0.32, 0.98 + i * 0.04, 0.1 - i * 0.2, 0.5, 1.5, 1.0); // ribs / serratus
   }
-  sp(g, 0.36, 0, 1.14, 0, 1.15, 0.75, 0.85);
-  add(g, new THREE.CylinderGeometry(0.46, 0.3, 0.6, 24), skin, 0, 1.44, 0, 1, 1, 0.75);
-  for (let i = 0; i < 4; i++) for (const s of [-1, 1]) sp(g, 0.1, s * 0.105, 1.2 + i * 0.145, 0.25 + i * 0.012, 1, 0.72, 0.6); // 8-pack
-  for (const s of [-1, 1]) { sp(g, 0.09, s * 0.3, 1.3, 0.14, 0.6, 1.6, 0.8); sp(g, 0.09, s * 0.34, 1.48, 0.12, 0.6, 1.6, 0.8); } // obliques
-  const chest = sp(g, 0.5, 0, 1.88, -0.02, 1.3, 0.85, 0.8);
-  for (const s of [-1, 1]) {
-    sp(g, 0.29, s * 0.25, 1.9, 0.26, 1.05, 0.85, 0.7);        // pecs
-    sp(g, 0.3, s * 0.48, 1.62, -0.05, 0.7, 1.3, 0.85);        // lats
-    sp(g, 0.24, s * 0.27, 2.24, -0.06, 1.4, 0.75, 1);         // traps
-    sp(g, 0.31, s * 0.76, 2.08, 0, 1, 0.95, 1);               // delts
-  }
-  if (c.chest !== null) sp(g, 0.1, 0, 1.86, 0.44, 0.75, 2.1, 0.45, pale);
-  add(g, new THREE.CylinderGeometry(0.21, 0.26, 0.34, 20), skin, 0, 2.36, 0.02);
+  if (c.chest !== null) sp(inner, 0.11, 0, 1.0, 1.02, 0.8, 2.0, 0.45, pale);
+  // neck
+  const neck = cap(inner, 0.27, 0.35, 0, 1.62, 0.92); neck.rotation.x = 0.85;
+  for (const s of [-1, 1]) sp(inner, 0.17, s * 0.2, 1.72, 0.85, 0.9, 1.0, 1.5);
 
-  // arms: a = upper-arm pivot, e = elbow pivot
-  const arms = [];
+  // legs: [front-left, front-right, hind-left, hind-right], each a pivot that swings
+  const legs = [];
   for (const s of [-1, 1]) {
-    const a = new THREE.Group(); a.position.set(s * 0.78, 2.08, 0); g.add(a);
-    cap(a, 0.17, 0.26, 0, -0.3, 0);
-    sp(a, 0.22, 0, -0.28, 0.07, 1, 1.15, 1);                  // bicep
-    sp(a, 0.17, 0, -0.3, -0.1, 0.9, 1.2, 0.8);                // tricep
-    const e = new THREE.Group(); e.position.set(0, -0.6, 0); a.add(e);
-    cap(e, 0.15, 0.24, 0, -0.26, 0);
-    sp(e, 0.17, 0, -0.16, 0.02, 1.05, 1.1, 1);
-    sp(e, 0.2, 0, -0.56, 0, 1, 0.9, 1.15);                    // fist-paw
-    arms.push({ a, e, s });
+    const a = new THREE.Group(); a.position.set(s * 0.44, 1.22, 0.56); inner.add(a);
+    cap(a, 0.17, 0.3, 0, -0.3, 0);
+    sp(a, 0.21, s * 0.04, -0.26, 0.07, 0.95, 1.2, 1.0);              // bicep
+    sp(a, 0.18, 0, -0.3, -0.11, 0.9, 1.25, 0.85);                    // tricep
+    cap(a, 0.125, 0.34, 0, -0.84, 0.02);
+    sp(a, 0.16, 0, -0.72, 0.03, 1.05, 1.15, 1.0);                    // forearm
+    sp(a, 0.19, 0, -1.13, 0.08, 1.0, 0.55, 1.4);                     // paw
+    legs.push(a);
   }
-  // pose: one arm flexing, the other pointing dramatically at the opponent
-  arms[1].a.rotation.z = 1.45; arms[1].e.rotation.z = 2.0;
-  arms[0].a.rotation.x = -1.3; arms[0].a.rotation.z = 0.15; arms[0].e.rotation.x = -0.15;
+  for (const s of [-1, 1]) {
+    const a = new THREE.Group(); a.position.set(s * 0.31, 1.12, -0.82); inner.add(a);
+    sp(a, 0.29, 0, -0.24, 0.02, 0.8, 1.35, 1.15);                    // thigh
+    sp(a, 0.17, 0, -0.5, 0.12, 0.8, 1.0, 0.9);                       // stifle
+    const shin = cap(a, 0.1, 0.34, 0, -0.76, -0.06); shin.rotation.x = -0.3;
+    sp(a, 0.17, 0, -1.03, 0.06, 1.0, 0.55, 1.4);                     // paw
+    legs.push(a);
+  }
 
   // head
-  const head = new THREE.Group(); head.position.set(0, 2.68, 0.1); g.add(head);
+  const head = new THREE.Group(); head.position.set(0, 1.98, 1.28); inner.add(head);
   sp(head, 0.3, 0, 0, 0, 1, 0.95, 1.05);
   const sn = add(head, new THREE.CapsuleGeometry(0.13, c.snout * 0.9, 8, 16), snoutM, 0, -0.07, 0.3 + c.snout * 0.3);
   sn.rotation.x = Math.PI / 2;
   sp(head, 0.15, 0, -0.19, 0.2, 1.25, 0.6, 1.3, c.chin !== null ? new THREE.MeshStandardMaterial({ color: c.chin, roughness: 0.5 }) : skin); // heroic jaw
   sp(head, 0.07, 0, -0.03, 0.44 + c.snout * 0.75, 1.2, 0.9, 0.9, dark);
   const iris = new THREE.MeshStandardMaterial({ color: c.eye, emissive: c.eye, emissiveIntensity: 1.3, roughness: 0.2 });
+  const ears = [];
   for (const s of [-1, 1]) {
     sp(head, 0.07, s * 0.125, 0.07, 0.24, 1.1, 0.7, 0.6, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 }));
     sp(head, 0.04, s * 0.125, 0.065, 0.285, 1, 1, 0.5, iris);
     sp(head, 0.016, s * 0.125, 0.065, 0.305, 1, 1, 0.5, dark);
     const brow = add(head, new THREE.BoxGeometry(0.2, 0.06, 0.1), dark, s * 0.13, 0.15, 0.25);
     brow.rotation.z = -s * 0.5; // very serious eyebrows
-    if (c.ear === 'floppy') sp(head, 0.15, s * 0.3, -0.06, -0.02, 0.42, 1.5, 1, c.earColor !== null ? new THREE.MeshStandardMaterial({ color: c.earColor }) : skin);
-    else { const e = add(head, new THREE.ConeGeometry(0.11, c.ear === 'big' ? 0.42 : 0.28, 16), skin, s * 0.19, 0.33, -0.02); e.rotation.z = -s * 0.3; }
+    const earM = c.earColor !== null ? new THREE.MeshStandardMaterial({ color: c.earColor }) : skin;
+    if (c.ear === 'floppy') ears.push(sp(head, 0.15, s * 0.3, -0.06, -0.02, 0.42, 1.5, 1, earM));
+    else { const e = add(head, new THREE.ConeGeometry(0.11, c.ear === 'big' ? 0.42 : 0.28, 16), earM, s * 0.19, 0.33, -0.02); e.rotation.z = -s * 0.3; ears.push(e); }
   }
   if (c.mask) sp(head, 0.3, 0, 0.07, 0.03, 1.03, 0.3, 1.02, dark);
-  if (c.fluffy) { sp(head, 0.24, 0, 0.32, -0.02, 1, 1, 1); for (const a of arms) sp(a.e, 0.2, 0, -0.38, 0, 1, 1, 1); }
+  if (c.fluffy) { sp(head, 0.24, 0, 0.32, -0.02, 1, 1, 1); for (const l of legs) sp(l, 0.2, 0, -0.9, 0, 1, 1, 1); }
   if (c.collar !== null) {
-    const col = add(g, new THREE.TorusGeometry(0.235, 0.05, 10, 24), new THREE.MeshStandardMaterial({ color: c.collar, roughness: 0.5 }), 0, 2.4, 0.02);
-    col.rotation.x = Math.PI / 2;
-    if (c.tag) sp(g, 0.06, 0, 2.3, 0.27, 1, 1, 0.4, new THREE.MeshStandardMaterial({ color: 0xf2c230, metalness: 0.7, roughness: 0.25 }));
+    const col = add(inner, new THREE.TorusGeometry(0.3, 0.055, 10, 24), new THREE.MeshStandardMaterial({ color: c.collar, roughness: 0.5 }), 0, 1.72, 1.02);
+    col.rotation.x = Math.PI / 2 - 0.75;
+    if (c.tag) sp(inner, 0.065, 0, 1.42, 1.18, 1, 1, 0.4, new THREE.MeshStandardMaterial({ color: 0xf2c230, metalness: 0.7, roughness: 0.25 }));
   }
-  const tail = cap(g, 0.07, 0.45, 0, 1.3, -0.42); tail.rotation.x = -0.9;
+  const tail = new THREE.Group(); tail.position.set(0, 1.45, -1.1); inner.add(tail);
+  const tm = cap(tail, 0.075, 0.55, 0, 0.2, -0.28); tm.rotation.x = -0.95;
 
-  g.userData = { head, chest, arms, buff: true, popY: 3.0, phase: Math.random() * 10 };
+  g.userData = { inner, head, chest, legs, tail, ears, buff: true, popY: 2.7, phase: Math.random() * 10 };
   return g;
 }
 
+// Prowl in place: weight shifting side to side, slow deliberate steps, eyes locked on the opponent.
 export function animateBuff(m, t) {
   const u = m.userData, p = t + u.phase;
-  const b = 1 + Math.sin(p * 2.4) * 0.025;
-  u.chest.scale.set(1.3 * b, 0.85 * b, 0.8 * b);
-  u.arms[1].e.rotation.z = 2.0 + Math.sin(p * 2.4) * 0.12; // slow, deliberate flexing
+  const sway = Math.sin(p * 1.25);
+  u.inner.position.x = sway * 0.55;                       // strafing sway
+  u.inner.position.z = Math.sin(p * 0.8) * 0.25;          // creeping in and backing off
+  u.inner.position.y = Math.abs(Math.sin(p * 3.2)) * 0.05 - 0.04 + Math.sin(p * 1.25) * 0.02;
+  u.inner.rotation.y = Math.cos(p * 1.25) * 0.42;         // body angles into the sidestep
+  u.inner.rotation.z = sway * 0.07;
+  u.inner.rotation.x = 0.06 + Math.sin(p * 0.8) * 0.04;   // shoulders low
+  u.head.rotation.y = -u.inner.rotation.y * 0.9;          // head stays on target
+  u.head.rotation.x = 0.18 + Math.sin(p * 2.1) * 0.05;
+  const st = p * 3.2;
+  u.legs[0].rotation.x = Math.sin(st) * 0.4; u.legs[3].rotation.x = Math.sin(st) * 0.35;
+  u.legs[1].rotation.x = -Math.sin(st) * 0.4; u.legs[2].rotation.x = -Math.sin(st) * 0.35;
+  for (let i = 0; i < 4; i++) u.legs[i].rotation.z = (i % 2 ? -1 : 1) * Math.max(0, Math.sin(st + i * 1.6)) * 0.1;
+  const b = 1 + Math.sin(p * 2.4) * 0.03;
+  u.chest.scale.set(1.05 * b, 1.02 * b, 1.12);
+  u.tail.rotation.y = Math.sin(p * 1.6) * 0.5;
+  u.tail.rotation.x = Math.sin(p * 0.9) * 0.15;
 }
 
 /* ---------- Friends ---------- */

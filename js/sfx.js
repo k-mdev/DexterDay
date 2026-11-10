@@ -80,6 +80,21 @@ function playClip(list, vol, detune = 0) {
   return true;
 }
 
+// A more dog-like bark than a bare tone: a falling growly pitch plus a breathy noise burst.
+function woof(vol, pitch = 1, delay = 0) {
+  const a = ac(); if (!a) return;
+  const t = a.currentTime + delay;
+  tone(300 * pitch, 0.11, 'sawtooth', vol, 105 * pitch, 0, null, t);
+  tone(150 * pitch, 0.12, 'square', vol * 0.5, 60 * pitch, 0, null, t);
+  const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  if (!noiseBuf) noise(0.01, 0.0001, t); // make sure the shared noise buffer exists
+  s.buffer = noiseBuf; s.loop = true;
+  f.type = 'bandpass'; f.frequency.setValueAtTime(1100 * pitch, t); f.frequency.exponentialRampToValueAtTime(450 * pitch, t + 0.1); f.Q.value = 1.2;
+  g.gain.setValueAtTime(vol * 1.6, t); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.11);
+  s.connect(f).connect(g).connect(master);
+  s.start(t, Math.random()); s.stop(t + 0.13);
+}
+
 /* ---------- Music ---------- */
 const _ = null;
 const hz = (m) => 440 * 2 ** ((m - 69) / 12);
@@ -192,14 +207,10 @@ export const sfx = {
   yeet: () => tone(300, 0.7, 'sine', 0.12, 1800),
   radarBark: () => {
     if (playClip(clips.bark, clips.barkVolume, 0.08)) return;
-    const f = 380 + Math.random() * 90; // a tiny, far-away "wuf"
-    tone(f, 0.05, 'sawtooth', 0.014, f * 0.55); tone(f * 0.5, 0.05, 'square', 0.008, f * 0.3);
-    if (Math.random() < 0.5) tone(f * 0.95, 0.06, 'sawtooth', 0.012, f * 0.5, 0.09);
+    woof(0.022, 0.85 + Math.random() * 0.3); // a tiny, far-away bark
+    if (Math.random() < 0.4) woof(0.016, 0.8 + Math.random() * 0.3, 0.16);
   },
-  radarSweep: () => {
-    if (playClip(clips.sweep, clips.sweepVolume)) return;
-    tone(1480, 0.5, 'sine', 0.018, 1440); tone(2960, 0.25, 'sine', 0.005); // soft sonar ping
-  },
+  radarSweep: () => { playClip(clips.sweep, clips.sweepVolume); }, // silent unless a clip is configured
   cutin: () => { const a = ac(); if (a) noise(0.28, 0.09, a.currentTime, null, 900); tone(200, 0.25, 'sawtooth', 0.07, 1400); },
   barkBig: () => { for (let i = 0; i < 3; i++) { tone(340 - i * 20, 0.13, 'sawtooth', 0.2, 120, i * 0.17); tone(170, 0.13, 'square', 0.1, 70, i * 0.17); } },
   splat: () => { for (let i = 0; i < 7; i++) tone(240 + Math.random() * 300, 0.09, 'sine', 0.13, 70, i * 0.05); const a = ac(); if (a) noise(0.2, 0.05, a.currentTime + 0.3, null, 1500); },

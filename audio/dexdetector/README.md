@@ -12,6 +12,6 @@ Drop audio files (mp3, wav or ogg) in this folder and list their file names in `
 ```
 
 - `bark` — played each time the sweep line passes a dog. One is picked at random, with a slight random pitch shift. Keep `barkVolume` low: these are meant to be super quiet.
-- `sweep` — played once per full rotation of the sweep line.
+- `sweep` — optional; played once per full rotation of the sweep line (silent if empty).
 
 While a list is empty the game uses its built-in synthesised sound for it.
