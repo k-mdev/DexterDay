@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {
   mat, box, makeDog, makeDexter, animateDog, RIVAL_LOOKS, makeSquirrel, makeTree, makeRock, makeFlower,
   makeBush, makeHouse, makeBowl, fillBowl, makeTreat, makeDigSpot, TREATS,
-  makeBuffDog, animateBuff, DEXTER_LOOK, makeDonkey, makeChicken, FRIEND_LOOKS, makeFarmBits, makeYard,
+  makeBuffDog, animateBuff, DEXTER_LOOK, makeDexterJet, makeDonkey, makeChicken, FRIEND_LOOKS, makeFarmBits, makeYard,
 } from './models.js';
 import { sfx } from './sfx.js';
 import { runBattle, RIVALS } from './battle.js';
@@ -48,11 +48,12 @@ const BOWL = { x: -2.5, z: -9.3 };
 const BED = { x: -4.6, z: -13.2 };
 const POOL = { x: -0.6, z: 8, r: 1.5 };
 const GARAGE = { x0: -2.3, x1: 9.3, z0: 15.7, z1: 23.3 };
-const trees = []; // {x,z,r}
+let trees = [];     // {x,z,r,mesh} — replanted each season
+const solids = [];  // {x,z,r} — fixed props that never move
 
-const ground = new THREE.Mesh(new THREE.CircleGeometry(110, 48), mat(0x6fb35a));
+const ground = new THREE.Mesh(new THREE.CircleGeometry(110, 48), mat(0x6fb35a, {}));
 ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-const clearing = new THREE.Mesh(new THREE.CircleGeometry(30, 40), mat(0x7cc063));
+const clearing = new THREE.Mesh(new THREE.CircleGeometry(30, 40), mat(0x7cc063, {}));
 clearing.rotation.x = -Math.PI / 2; clearing.position.y = 0.01; clearing.receiveShadow = true; scene.add(clearing);
 // dirt path from the porch into the yard
 const pathM = mat(0xc9a877);
@@ -83,57 +84,104 @@ const inFarmZone = (x, z) => (x > -4.5 && z > 4 && z < 25) || (x > 8 && z < 0 &&
 const inWater = (x, z) => inPond(x, z) || Math.hypot(x - POOL.x, z - POOL.z) < POOL.r;
 const inPond = (x, z, pad = 0) => Math.hypot(x - POND.x, z - POND.z) < POND.r + pad;
 
-for (let i = 0; i < 34; i++) {
-  for (let tries = 0; tries < 30; tries++) {
-    const a = rand(0, Math.PI * 2), r = rand(9, 35);
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (inHouseZone(x, z) || inFarmZone(x, z) || inPond(x, z, 2.5) || (Math.abs(x) < 3 && z < 9 && z > -12)) continue;
-    if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < 4.5)) continue;
-    const s = rand(0.8, 1.25);
-    const t = makeTree(Math.random() < 0.6 ? 'pine' : 'round', s);
-    t.position.set(x, 0, z); scene.add(t);
-    trees.push({ x, z, r: 0.55 * s, mesh: t });
-    break;
+for (const [x, z, r] of [[8.4, 6.7, 0.45], [-10.5, -8.6, 0.8], [-13.4, -7.2, 0.3], [24.1, 7.2, 0.7], [21, -2.6, 1.0], [11.3, -11.5, 0.95], [10.6, -7.2, 0.8], [14, -4.2, 1.2], [8, -25.6, 0.6], [-10.5, 17.5, 1.5], [-7.4, 20.4, 1.0]])
+  solids.push({ x, z, r }); // bin, utility box, bird bath, hay, coop, dog house, campfire, picnic table, grill, hunting tower, transformer
+
+/* ---------- Seasons ----------
+ * Every two days the season turns. Buildings and props never change, but the plants are
+ * regrown from a seed: trees land in new spots with new colours, flowers come and go,
+ * the ground and lake change, and each season has its own weather drifting down. */
+const SEASONS = [
+  { name: 'Spring', icon: '🌸', ground: 0x86c96a, clearing: 0x93d477, water: 0x55aee0, flowers: 120,
+    pines: [[0x2f7a45, 0x3a8a50, 0x48a05c]], rounds: [[0xf2a6c8, 0xf7c3da], [0x6cc05a, 0x86d070], [0xf6d4e4, 0xf2a6c8]],
+    weather: { color: 0xffc4dd, n: 150, fall: 1.1, sway: 1.5, size: 0.17 } },
+  { name: 'Summer', icon: '☀️', ground: 0x6fb35a, clearing: 0x7cc063, water: 0x4aa3d8, flowers: 70,
+    pines: [[0x2f6b3c, 0x377a45, 0x3f8a4e]], rounds: [[0x4c9a4a, 0x5fb056], [0x418f45, 0x55a850]], weather: null },
+  { name: 'Autumn', icon: '🍂', ground: 0x9c9a52, clearing: 0xaaa35a, water: 0x4a93b8, flowers: 18,
+    pines: [[0x2c5f38, 0x336b40, 0x3a7748]], rounds: [[0xd9772b, 0xe89a3c], [0xb8402a, 0xd95f35], [0xe0b23a, 0xedc95a]],
+    weather: { color: 0xe08a30, n: 130, fall: 1.6, sway: 2.2, size: 0.21 } },
+  { name: 'Winter', icon: '❄️', ground: 0xe6edf2, clearing: 0xf2f6f9, water: 0xbfe3f2, flowers: 0,
+    pines: [[0x2f6b3c, 0x5f927a, 0xf4f8fb], [0x3a7748, 0xdfeaf0, 0xf4f8fb]], rounds: null,
+    weather: { color: 0xffffff, n: 420, fall: 2.3, sway: 0.8, size: 0.14 } },
+];
+const seasonKey = (day) => Math.floor((day - 1) / 2);
+const seasonOf = (day) => SEASONS[seasonKey(day) % SEASONS.length];
+function mulberry32(a) {
+  return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const nature = new THREE.Group(); scene.add(nature);
+let natureKey = -1, weather = null;
+function buildNature(day) {
+  const key = seasonKey(day);
+  if (key === natureKey) return false;
+  natureKey = key;
+  const season = SEASONS[key % SEASONS.length];
+  const R = mulberry32(1000 + key * 7919), rr = (a, b) => a + R() * (b - a), pk = (arr) => arr[Math.floor(R() * arr.length)];
+  nature.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+  nature.clear(); trees = [];
+  const pal = () => ({ pine: pk(season.pines), round: season.rounds ? pk(season.rounds) : null });
+  const clear = (x, z, gap) => !trees.some((t) => Math.hypot(t.x - x, t.z - z) < gap) && !solids.some((p) => Math.hypot(p.x - x, p.z - z) < p.r + 2.2);
+  const plant = (kind, x, z, sc, solid = true) => {
+    const t = makeTree(kind, sc, pal(), R() * 6.28);
+    t.position.set(x, 0, z); nature.add(t);
+    if (solid) trees.push({ x, z, r: 0.55 * sc, mesh: t });
+  };
+  for (let i = 0; i < 34; i++) for (let tries = 0; tries < 30; tries++) {          // scattered through the yard
+    const a = rr(0, Math.PI * 2), r = rr(9, 35), x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (inHouseZone(x, z) || inFarmZone(x, z) || inPond(x, z, 2.5) || (Math.abs(x) < 3 && z < 9 && z > -12) || !clear(x, z, 4.5)) continue;
+    plant(R() < 0.6 ? 'pine' : 'round', x, z, rr(0.8, 1.25)); break;
   }
-}
-for (const [x, z, r] of [[8.4, 6.7, 0.45], [-10.5, -8.6, 0.8], [-13.4, -7.2, 0.3], [24.1, 7.2, 0.7], [21, -2.6, 1.0], [11.3, -11.5, 0.95], [10.6, -7.2, 0.8], [14, -4.2, 1.2], [3, -25.6, 0.6]])
-  trees.push({ x, z, r, mesh: new THREE.Object3D() }); // bin, utility box, bird bath, hay, coop, dog house, campfire, picnic table, grill
-// the left side of the house is proper forest: pack in extra trees
-for (let i = 0; i < 26; i++) {
-  for (let tries = 0; tries < 20; tries++) {
-    const x = rand(-33, -15), z = rand(-26, 22);
-    if (x * x + z * z > 34.5 * 34.5 || trees.some((t) => Math.hypot(t.x - x, t.z - z) < 3.2)) continue;
-    const sc = rand(0.85, 1.3);
-    const t = makeTree(Math.random() < 0.7 ? 'pine' : 'round', sc);
-    t.position.set(x, 0, z); scene.add(t);
-    trees.push({ x, z, r: 0.55 * sc, mesh: t });
-    break;
+  for (let i = 0; i < 26; i++) for (let tries = 0; tries < 20; tries++) {          // the forest on the left
+    const x = rr(-33, -15), z = rr(-26, 22);
+    if (x * x + z * z > 34.5 * 34.5 || !clear(x, z, 3.2)) continue;
+    plant(R() < 0.7 ? 'pine' : 'round', x, z, rr(0.85, 1.3)); break;
   }
+  for (let i = 0; i < 230; i++) {                                                 // the tree line beyond the yard
+    const a = rr(0, Math.PI * 2), r = rr(38, 75), x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (z > 26 && r < 54) continue; // keep the camera's side of the clearing open
+    plant(R() < 0.75 ? 'pine' : 'round', x, z, rr(1, 1.8), false);
+  }
+  const offLawn = (x, z) => inPond(x, z, 0.5) || (x > -8 && x < 8 && z < -9.5 && z > -26) || (x > -3 && x < 10 && z > 5 && z < 24);
+  const scatter = (n, make) => { for (let i = 0; i < n; i++) { const a = rr(0, Math.PI * 2), r = rr(3, 34), x = Math.cos(a) * r, z = Math.sin(a) * r; if (offLawn(x, z)) continue; const o = make(); o.position.x = x; o.position.z = z; nature.add(o); } };
+  scatter(season.flowers, () => makeFlower(R));
+  scatter(12, () => makeBush());
+  scatter(8, () => makeRock(rr(0.5, 1)));
+  ground.material.color.setHex(season.ground); clearing.material.color.setHex(season.clearing);
+  pond.material.color.setHex(season.water);
+  arenaGround.material.color.setHex(season.ground);
+  // weather: petals, leaves or snow drifting down around Dexter
+  if (weather) { scene.remove(weather.points); weather.points.geometry.dispose(); weather = null; }
+  if (season.weather) {
+    const w = season.weather, pos = new Float32Array(w.n * 3);
+    for (let i = 0; i < w.n; i++) { pos[i * 3] = rr(-22, 22); pos[i * 3 + 1] = rr(0, 15); pos[i * 3 + 2] = rr(-22, 22); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const points = new THREE.Points(geo, new THREE.PointsMaterial({ color: w.color, size: w.size, transparent: true, opacity: 0.9, depthWrite: false }));
+    points.frustumCulled = false; scene.add(points);
+    weather = { points, ...w };
+  }
+  return true;
 }
-for (let i = 0; i < 230; i++) {
-  const a = rand(0, Math.PI * 2), r = rand(38, 75);
-  const x = Math.cos(a) * r, z = Math.sin(a) * r;
-  if (z > 26 && r < 54) continue; // keep the camera's side of the clearing open
-  const t = makeTree(Math.random() < 0.75 ? 'pine' : 'round', rand(1, 1.8));
-  t.position.set(x, 0, z); scene.add(t);
-}
-for (let i = 0; i < 70; i++) {
-  const a = rand(0, Math.PI * 2), r = rand(3, 34);
-  const x = Math.cos(a) * r, z = Math.sin(a) * r;
-  if (inPond(x, z, 0.5) || (x > -8 && x < 8 && z < -9.5 && z > -22) || (x > -3 && x < 10 && z > 5 && z < 24)) continue;
-  const f = i % 6 === 0 ? makeBush() : i % 9 === 0 ? makeRock(rand(0.5, 1)) : makeFlower();
-  f.position.x = x; f.position.z = z; scene.add(f);
+function updateWeather(dt) {
+  if (!weather) return;
+  const a = weather.points.geometry.attributes.position, p = a.array;
+  for (let i = 0; i < weather.n; i++) {
+    p[i * 3 + 1] -= weather.fall * dt * (0.7 + (i % 5) * 0.12);
+    p[i * 3] += Math.sin(S.clock * weather.sway + i) * dt * 0.6;
+    if (p[i * 3 + 1] < 0) p[i * 3 + 1] = 15;
+  }
+  a.needsUpdate = true;
+  weather.points.position.set(dex.x, 0, dex.z);
 }
 
 /* ---------- Battle arena ----------
  * Fights happen in their own scene: an empty misty clearing where thick fog swallows
  * everything past the two fighters, so nothing from the yard can clip into them. */
 const battleScene = new THREE.Scene();
+const arenaGround = new THREE.Mesh(new THREE.CircleGeometry(70, 40), mat(0x5f9a55, {}));
 battleScene.background = new THREE.Color(0x8fa3a8);
 battleScene.fog = new THREE.Fog(0x8fa3a8, 9, 27);
 {
-  const g = new THREE.Mesh(new THREE.CircleGeometry(70, 40), mat(0x5f9a55));
-  g.rotation.x = -Math.PI / 2; g.receiveShadow = true; battleScene.add(g);
+  arenaGround.rotation.x = -Math.PI / 2; arenaGround.receiveShadow = true; battleScene.add(arenaGround);
   battleScene.add(new THREE.HemisphereLight(0xe6f0ff, 0x4a6b3a, 1.0));
   const l = new THREE.DirectionalLight(0xfff2d8, 1.7);
   l.position.set(8, 16, 6); l.castShadow = true; l.shadow.mapSize.set(1024, 1024);
@@ -150,6 +198,8 @@ let inArena = false;
 
 /* ---------- Height & collision ---------- */
 const PORCH_H = 0.7;
+// solid rectangles [x0, x1, z0, z1]: house walls, garage, back screen porch, back stairs
+const BLOCKS = [[-5.5, 5.5, -22, -14.05], [GARAGE.x0, GARAGE.x1, GARAGE.z0, GARAGE.z1], [-4.5, 1.6, -25.5, -21.4], [1.5, 6.2, -24.3, -22.3]];
 const inPorch = (x, z) => x >= -7.5 && x <= 7.5 && z >= -21.5 && z <= -11.5;
 const inSteps = (x, z) => x >= -1.2 && x <= 1.2 && z > -11.5 && z <= -9.7;
 const stepH = (z) => clamp((PORCH_H * (-9.7 - z)) / 1.8, 0, PORCH_H);
@@ -160,11 +210,11 @@ function surfaceY(x, z, y) {
 }
 function blocked(x, z, y) {
   if (x * x + z * z > WORLD_R * WORLD_R) return true;
-  if (x > -5.5 && x < 5.5 && z > -22 && z < -14.05) return true;        // house walls
+  for (const b of BLOCKS) if (x > b[0] && x < b[1] && z > b[2] && z < b[3]) return true;
   if (inPorch(x, z) && y + 0.6 < PORCH_H) return true;                   // porch foundation
   if (y > 0.45 && !inPorch(x, z) && !inSteps(x, z)) return true;         // porch railing
-  if (x > GARAGE.x0 && x < GARAGE.x1 && z > GARAGE.z0 && z < GARAGE.z1) return true;
   for (const t of trees) { const dx = x - t.x, dz = z - t.z; if (dx * dx + dz * dz < (t.r + 0.4) ** 2) return true; }
+  for (const t of solids) { const dx = x - t.x, dz = z - t.z; if (dx * dx + dz * dz < (t.r + 0.4) ** 2) return true; }
   return false;
 }
 function randomSpot(minR = 4, maxR = 32) {
@@ -182,9 +232,10 @@ const S = {
   mode: 'title', day: 1, time: 7, carried: 0, stash: 0, level: 1, xp: 0, hp: 30, maxHp: 30, atk: 6,
   stamina: 100, grace: 0, best: 0, today: null, nightWarned: false,
 };
-const dex = { glitch: false, mesh: makeDexter(), x: 0, y: 0, z: -5, vy: 0, face: 0, move: 0, dig: 0, digSpot: null, wet: false };
+const dex = { glitch: false, barkT: 0, zoom: false, mesh: makeDexter(), x: 0, y: 0, z: -5, vy: 0, face: 0, move: 0, dig: 0, digSpot: null, wet: false };
 dex.mesh.scale.setScalar(1.45);
 scene.add(dex.mesh);
+dex.jet = makeDexterJet(); dex.jet.visible = false; scene.add(dex.jet);
 const treats = [], digs = [], rivals = [];
 let squirrel = null;
 let spawnT = 14, treatT = 6, battleCam = null, hudT = 0, battleBuffs = [];
@@ -210,7 +261,7 @@ function clockText() {
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
 }
 function updateHud() {
-  $('hud-day').textContent = `Day ${S.day}`;
+  $('hud-day').textContent = `Day ${S.day} ${seasonOf(S.day).icon}`;
   $('hud-clock').textContent = clockText();
   $('hud-carried').textContent = S.carried;
   $('hud-stash').textContent = S.stash;
@@ -390,6 +441,7 @@ function startDay(day) {
   S.day = day; S.time = 7; S.carried = 0; S.stamina = 100; S.grace = 0; S.nightWarned = false;
   applyLevel(); S.hp = S.maxHp;
   S.today = { startStash: S.stash, wins: 0, stolen: 0, eaten: 0 };
+  const newSeason = buildNature(day);
   clearEntities();
   const n = Math.min(26, 12 + day * 2);
   for (let i = 0; i < n; i++) spawnTreat();
@@ -405,7 +457,8 @@ function startDay(day) {
   $('hud').classList.remove('hidden');
   if (isTouch) $('touch').classList.remove('hidden');
   updateHud();
-  toast(day === 1 ? 'Good morning, Dexter! Hop down the porch steps and find some treats.' : `Day ${day}. The rivals are getting bolder...`);
+  const sn = seasonOf(day);
+  toast(day === 1 ? 'Good morning, Dexter! Hop down the porch steps and find some treats.' : newSeason ? `${sn.icon} ${sn.name} has arrived. The yard looks different today.` : `Day ${day}. Another fine ${sn.name.toLowerCase()} day.`);
 }
 function endDay(passedOut) {
   const lostCarried = passedOut ? S.carried : 0;
@@ -616,7 +669,7 @@ function currentAction() {
 function interact() {
   if (S.mode !== 'play' || !$('help').classList.contains('hidden')) return;
   const a = currentAction();
-  if (!a) { sfx.bark(); return; } // barking at nothing is always allowed
+  if (!a) { sfx.bark(); dex.barkT = 0.36; return; } // barking at nothing is always allowed
   if (a.type === 'sleep') endDay(false);
   else if (a.type === 'fight') startBattle(a.rival);
   else if (a.type === 'stash') {
@@ -683,7 +736,23 @@ function updateDexter(dt) {
   dex.mesh.rotation.y = dex.face;
   dex.mesh.rotation.x = dex.dig > 0 ? 0.45 + Math.sin(S.clock * 30) * 0.08 : 0;
   // blink while invulnerable after a battle
-  dex.mesh.visible = S.grace <= 0 || Math.floor(S.clock * 12) % 2 === 0;
+  const show = S.grace <= 0 || Math.floor(S.clock * 12) % 2 === 0;
+  // zoomies: Dexter becomes a small jet until he stops
+  if (wantZoom && !dex.zoom) sfx.jet();
+  dex.zoom = wantZoom;
+  dex.mesh.visible = show && !dex.zoom; dex.jet.visible = show && dex.zoom;
+  if (dex.zoom) {
+    const j = dex.jet, u = j.userData;
+    let turn = Math.atan2(ix, iz) - dex.face;
+    while (turn > Math.PI) turn -= Math.PI * 2; while (turn < -Math.PI) turn += Math.PI * 2;
+    j.position.set(dex.x, dex.y + 0.95 + Math.sin(S.clock * 9) * 0.07, dex.z);
+    j.rotation.y = dex.face;
+    u.inner.rotation.z += (clamp(-turn * 1.6, -0.9, 0.9) - u.inner.rotation.z) * Math.min(1, dt * 8); // bank into turns
+    u.inner.rotation.x = -0.08 + Math.sin(S.clock * 9) * 0.03;
+    u.flame.scale.set(1 + Math.sin(S.clock * 50) * 0.2, 1 + Math.sin(S.clock * 37) * 0.35, 1); u.core.scale.y = 1 + Math.sin(S.clock * 43) * 0.3;
+    u.ears.forEach((e, i) => { e.rotation.x = -0.9 + Math.sin(S.clock * 30 + i) * 0.2; });
+    u.tongue.rotation.z = Math.sin(S.clock * 40) * 0.4;
+  }
 }
 
 function updateTreats(dt) {
@@ -712,7 +781,8 @@ function pushOutOfHouse(p) {
   pushRect(p, -7.9, 7.9, -21.9, -11.1);                 // porch + house
   pushRect(p, -1.6, 1.6, -11.5, -9.5);                  // front steps
   pushRect(p, GARAGE.x0 - 0.2, GARAGE.x1 + 0.2, GARAGE.z0 - 0.2, GARAGE.z1 + 0.2);
-  for (const t of trees) {
+  pushRect(p, -4.8, 6.5, -25.8, -21.9);                 // back porch + stairs
+  for (const t of [...trees, ...solids]) {
     const dx = p.x - t.x, dz = p.z - t.z, d = Math.hypot(dx, dz), r = t.r + 0.35;
     if (d < r && d > 0.001) { p.x = t.x + (dx / d) * r; p.z = t.z + (dz / d) * r; }
   }
@@ -977,7 +1047,16 @@ function tick(dt) {
   if (S.mode === 'title') { dex.mesh.position.set(0, 0, -5); dex.mesh.rotation.y = Math.sin(S.clock * 0.5) * 0.5; }
   if (S.mode === 'battle') { for (const r of rivals) animateDog(r.mesh, S.clock, 0, 0.5); for (const b of battleBuffs) animateBuff(b, S.clock); }
   animateDog(dex.mesh, S.clock, S.mode === 'play' ? dex.move : dex.glitch ? 1.3 : 0, S.mode === 'battle' ? 0.2 : 0.7);
+  if (dex.barkT > 0) { // two quick head-tosses in time with the woof-woof
+    dex.barkT -= dt;
+    const k = 1 - Math.max(0, dex.barkT) / 0.36, u = dex.mesh.userData;
+    u.head.rotation.x = -Math.abs(Math.sin(k * Math.PI * 2)) * 0.6;
+    u.inner.position.y += Math.abs(Math.sin(k * Math.PI * 2)) * 0.05;
+    if (u.tongue) u.tongue.scale.z = 1.6;
+  }
+  if (S.mode !== 'play') dex.jet.visible = false;
   if (S.mode !== 'play' && S.mode !== 'battle') dex.mesh.visible = true;
+  updateWeather(dt);
   yard.userData.flames.forEach((f, i) => { f.scale.y = 0.8 + Math.sin(S.clock * (9 + i * 3) + i) * 0.25; f.rotation.y += dt * 3; }); // campfire flicker
   const pm = house.userData.porchMat;
   pm.opacity += ((S.mode === 'play' && inPorch(dex.x, dex.z) ? 0.18 : 1) - pm.opacity) * Math.min(1, dt * 6);
@@ -994,5 +1073,6 @@ if (sv && sv.day > 1) {
   S.best = sv.best || 0;
   $('best').textContent = `Biggest stash: ${S.best} 🦴 · ${rankFor(S.best)}`;
 }
-window.__dexter = { S, dex, rivals, treats, keys, FRIENDS, startBattle, spawnRival, endDay, tick }; // handy for debugging
+window.__dexter = { S, dex, rivals, treats, keys, FRIENDS, startBattle, spawnRival, endDay, tick, startDay };
+buildNature(1); // handy for debugging
 requestAnimationFrame(frame);

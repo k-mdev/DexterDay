@@ -120,6 +120,52 @@ const TRACKS = {
       ...rep([41, 41, 53, 41], 2), ...rep([43, 43, 55, 43], 2), ...rep([38, 38, 50, 38], 2), ...rep([40, 40, 52, 40], 2)],
   },
 };
+Object.assign(TRACKS, {
+  meadow: { // G major, gentle and wide
+    bpm: 92, leadType: 'sine', leadVol: 0.075, bassType: 'triangle', bassVol: 0.07, hat: 0,
+    lead: [79, _, _, 83, 86, _, 83, _, 81, _, 79, _, 76, _, _, _, 74, _, _, 79, 83, _, 81, _, 79, _, _, _, _, _, _, _,
+      81, _, _, 84, 88, _, 86, _, 83, _, 81, _, 79, _, _, _, 76, _, 79, _, 74, _, 76, _, 79, _, _, _, _, _, _, _],
+    bass: [43, _, _, _, 50, _, _, _, 40, _, _, _, 47, _, _, _, 48, _, _, _, 43, _, _, _, 50, _, _, _, 50, _, 45, _,
+      45, _, _, _, 52, _, _, _, 43, _, _, _, 50, _, _, _, 48, _, _, _, 50, _, _, _, 43, _, _, _, 43, _, _, _],
+  },
+  stroll: { // F major, bouncy
+    bpm: 122, leadType: 'square', leadVol: 0.035, bassType: 'triangle', bassVol: 0.085, hat: 0.01,
+    lead: [77, _, 81, _, 84, 81, 77, _, 79, _, 82, _, 86, 82, 79, _, 81, _, 84, _, 89, _, 86, 84, 82, _, 79, _, 77, _, _, _,
+      84, _, 86, 84, 81, _, 77, _, 82, _, 84, 82, 79, _, 76, _, 77, _, 81, _, 84, _, 86, _, 84, 81, 79, 76, 77, _, _, _],
+    bass: [41, _, 53, _, 41, _, 53, _, 43, _, 55, _, 43, _, 55, _, 45, _, 57, _, 46, _, 58, _, 48, _, 60, _, 41, _, 48, _,
+      41, _, 53, _, 41, _, 53, _, 46, _, 58, _, 48, _, 60, _, 41, _, 53, _, 46, _, 58, _, 48, _, 60, _, 41, _, 41, _],
+  },
+  lazy: { // D major, slow afternoon
+    bpm: 78, leadType: 'triangle', leadVol: 0.07, bassType: 'sine', bassVol: 0.085, hat: 0, long: true,
+    lead: [74, _, _, _, 78, _, 81, _, _, _, 78, _, 76, _, _, _, 71, _, _, _, 74, _, 78, _, _, _, 76, _, 74, _, _, _,
+      79, _, _, _, 78, _, 76, _, _, _, 74, _, 73, _, _, _, 74, _, _, _, 69, _, 74, _, _, _, _, _, _, _, _, _],
+    bass: [38, _, _, _, _, _, _, _, 45, _, _, _, _, _, _, _, 43, _, _, _, _, _, _, _, 45, _, _, _, _, _, _, _],
+  },
+  fireflies: { // E minor arpeggios for the night
+    bpm: 84, leadType: 'sine', leadVol: 0.05, bassType: 'sine', bassVol: 0.075, hat: 0, long: true,
+    lead: [64, _, 67, _, 71, _, 76, _, 71, _, 67, _, 64, _, _, _, 60, _, 64, _, 67, _, 72, _, 67, _, 64, _, 60, _, _, _,
+      62, _, 66, _, 69, _, 74, _, 69, _, 66, _, 62, _, _, _, 59, _, 63, _, 66, _, 71, _, 66, _, 63, _, 59, _, _, _],
+    bass: [40, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, 36, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+      38, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, 35, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+  },
+  showdown: { // D minor, a second battle theme
+    bpm: 156, leadType: 'sawtooth', leadVol: 0.035, bassType: 'square', bassVol: 0.05, hat: 0.03, kick: true,
+    lead: [74, _, 77, _, 81, _, 80, 81, 77, _, 74, _, 72, 74, _, _, 74, _, 77, _, 81, _, 84, 86, 85, _, 81, _, 77, 81, _, _,
+      86, _, _, 84, 81, _, 84, 86, 89, _, 88, _, 86, 84, _, _, 82, _, 81, 79, 77, _, 79, 81, 73, _, 76, _, 81, 85, 88, _],
+    bass: [...rep([38, 50, 38, 50], 4), ...rep([34, 46, 34, 46], 2), ...rep([36, 48, 36, 48], 2),
+      ...rep([38, 50, 38, 50], 2), ...rep([41, 53, 41, 53], 2), ...rep([43, 55, 43, 55], 2), ...rep([45, 57, 45, 57], 2)],
+  },
+});
+// A "mood" picks from several tracks and moves on to a different one after a couple of loops,
+// with a short breather in between, so the music never sits on one tune for long.
+const MOODS = { day: ['day', 'meadow', 'stroll', 'lazy'], night: ['night', 'fireflies'], battle: ['battle', 'showdown'] };
+let mood = null;
+function nextTrack() {
+  const pool = MOODS[mood] || [mood];
+  const options = pool.length > 1 ? pool.filter((n) => n !== track) : pool;
+  track = options[Math.floor(Math.random() * options.length)];
+  step = 0;
+}
 let track = null, step = 0, nextT = 0;
 function musicTick() {
   if (!ctx || !track) return;
@@ -134,6 +180,7 @@ function musicTick() {
     if (T.kick && i % 4 === 0) tone(150, 0.12, 'sine', 0.16, 45, 0, musicBus, nextT);
     if (T.kick && i % 8 === 4) noise(0.1, 0.05, nextT, musicBus, 1800);
     step++; nextT += sl;
+    if (step >= T.lead.length * 2) { nextTrack(); nextT += mood === 'battle' ? sl * 2 : 2.5; break; } // change the tune
   }
 }
 
@@ -175,8 +222,9 @@ export const sfx = {
     return muted;
   },
   music(name) {
-    if (track === name) return;
-    track = name; step = 0; nextT = 0;
+    if (mood === name) return;
+    mood = name; nextT = 0;
+    nextTrack();
   },
   ambient(mode) {
     ambient = mode;
@@ -205,6 +253,7 @@ export const sfx = {
   heehaw: () => { tone(620, 0.3, 'sawtooth', 0.14, 900); tone(260, 0.5, 'sawtooth', 0.16, 170, 0.32); },
   oink: () => { tone(190, 0.12, 'sawtooth', 0.13, 130); tone(210, 0.14, 'sawtooth', 0.13, 120, 0.16); },
   yeet: () => tone(300, 0.7, 'sine', 0.12, 1800),
+  jet: () => { const a = ac(); if (a) noise(0.7, 0.07, a.currentTime, null, 700); tone(180, 0.6, 'sawtooth', 0.06, 900); },
   radarBark: () => {
     if (playClip(clips.bark, clips.barkVolume, 0.08)) return;
     woof(0.022, 0.85 + Math.random() * 0.3); // a tiny, far-away bark

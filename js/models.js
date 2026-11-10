@@ -206,6 +206,34 @@ export function makeDexter() {
   return d;
 }
 
+// Zoomies form: a small Dexter-shaped jet. Faces +Z.
+export function makeDexterJet() {
+  const g = new THREE.Group();
+  const inner = new THREE.Group(); g.add(inner);
+  const fur = new THREE.MeshStandardMaterial({ color: 0x26262d, roughness: 0.45, metalness: 0.25 });
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1.25, 8, 16), fur); body.rotation.x = Math.PI / 2; body.castShadow = true; inner.add(body);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.55, 14), fur); nose.rotation.x = Math.PI / 2; nose.position.z = 1.1; inner.add(nose);
+  softBox(inner, 0.14, 0.1, 0.1, 0x0a0a0a, 0, 0, 1.38);                                  // wet nose on the tip
+  softBox(inner, 0.2, 0.06, 0.3, 0x8a8a8c, 0, -0.17, 0.95);                              // grey chin
+  for (const s of [-1, 1]) {
+    softBox(inner, 0.13, 0.13, 0.08, 0xf4f1e8, s * 0.13, 0.2, 0.72); softBox(inner, 0.08, 0.09, 0.07, 0x7a4215, s * 0.13, 0.2, 0.76); softBox(inner, 0.04, 0.045, 0.06, 0x0a0a0a, s * 0.13, 0.2, 0.79);
+    const wing = softBox(inner, 1.25, 0.07, 0.62, 0x26262d, s * 0.82, -0.02, -0.12, 0.3); wing.rotation.y = s * 0.42; wing.rotation.z = s * 0.06;
+    softBox(inner, 0.2, 0.08, 0.3, 0xc7362b, s * 1.42, 0.02, -0.42).rotation.y = s * 0.42;  // red wingtips
+    softBox(inner, 0.55, 0.06, 0.32, 0x26262d, s * 0.36, 0.05, -0.92, 0.3).rotation.y = s * 0.3; // tailplanes
+  }
+  const ears = [];
+  for (const s of [-1, 1]) { const e = softBox(inner, 0.09, 0.3, 0.36, 0x1b1b1f, s * 0.31, 0.12, 0.42); e.rotation.z = s * 0.35; ears.push(e); }
+  const fin = softBox(inner, 0.08, 0.55, 0.42, 0x26262d, 0, 0.42, -0.88, 0.3); fin.rotation.x = -0.45;   // his tail, as the fin
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.05, 8, 22), new THREE.MeshStandardMaterial({ color: 0xc7362b, roughness: 0.5 })); band.position.z = 0.35; inner.add(band);
+  softBox(inner, 0.22, 0.05, 0.6, 0xf2f0ea, 0, -0.29, 0.1);                               // white chest stripe
+  const tongue = softBox(inner, 0.1, 0.03, 0.4, 0xf08a9c, 0.14, -0.14, 0.9); tongue.rotation.y = -1.9; // flapping in the wind
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.2, 1.1, 10), new THREE.MeshBasicMaterial({ color: 0xffa02e, transparent: true, opacity: 0.9 }));
+  flame.rotation.x = -Math.PI / 2; flame.position.z = -1.45; inner.add(flame);
+  const core = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.7, 10), new THREE.MeshBasicMaterial({ color: 0xbfe9ff })); core.rotation.x = -Math.PI / 2; core.position.z = -1.25; inner.add(core);
+  g.userData = { inner, flame, core, ears, tongue };
+  return g;
+}
+
 /* ---------- Serious Mode (battle only) ----------
  * When a fight starts everyone becomes an absurdly muscular, smooth, high-poly
  * version of themselves, prowling on all fours. Purely cosmetic. Faces +Z. */
@@ -389,19 +417,27 @@ export function makeSquirrel() {
 }
 
 /* ---------- Scenery ---------- */
-export function makeTree(kind, s = 1) {
+const SUMMER_PAL = { pine: [0x2f6b3c, 0x377a45, 0x3f8a4e], round: [0x4c9a4a, 0x5fb056] };
+// pal.pine = three tier colours (bottom to top); pal.round = two canopy colours, or null for a bare winter tree
+export function makeTree(kind, s = 1, pal = SUMMER_PAL, rot = Math.random() * 6.28) {
   const g = new THREE.Group();
   if (kind === 'pine') {
     shape(g, new THREE.CylinderGeometry(0.22, 0.32, 1.6, 6), 0x6b4a2e, 0, 0.8, 0);
-    const greens = [0x2f6b3c, 0x377a45, 0x3f8a4e];
-    for (let i = 0; i < 3; i++) shape(g, new THREE.ConeGeometry(1.7 - i * 0.4, 2.1, 7), greens[i], 0, 2.2 + i * 1.25, 0);
-  } else {
+    for (let i = 0; i < 3; i++) shape(g, new THREE.ConeGeometry(1.7 - i * 0.4, 2.1, 7), pal.pine[i], 0, 2.2 + i * 1.25, 0);
+  } else if (pal.round) {
     shape(g, new THREE.CylinderGeometry(0.25, 0.38, 2.4, 6), 0x7a5533, 0, 1.2, 0);
-    shape(g, new THREE.IcosahedronGeometry(1.7, 0), 0x4c9a4a, 0, 3.4, 0);
-    shape(g, new THREE.IcosahedronGeometry(1.1, 0), 0x5fb056, 0.8, 4.2, 0.3);
+    shape(g, new THREE.IcosahedronGeometry(1.7, 0), pal.round[0], 0, 3.4, 0);
+    shape(g, new THREE.IcosahedronGeometry(1.1, 0), pal.round[1], 0.8, 4.2, 0.3);
+  } else { // bare branches
+    shape(g, new THREE.CylinderGeometry(0.2, 0.38, 3.2, 6), 0x6b4f38, 0, 1.6, 0);
+    for (let i = 0; i < 5; i++) {
+      const b = shape(g, new THREE.CylinderGeometry(0.05, 0.11, 1.7, 5), 0x6b4f38, Math.cos(i * 1.3) * 0.55, 3.2 + (i % 3) * 0.45, Math.sin(i * 1.3) * 0.55);
+      b.rotation.z = -Math.cos(i * 1.3) * 0.8; b.rotation.x = Math.sin(i * 1.3) * 0.8;
+    }
+    shape(g, new THREE.IcosahedronGeometry(0.35, 0), 0xf4f8fb, 0, 3.3, 0).scale.y = 0.4; // a dab of snow
   }
   g.scale.setScalar(s);
-  g.rotation.y = Math.random() * 6.28;
+  g.rotation.y = rot;
   return g;
 }
 
@@ -412,11 +448,11 @@ export function makeRock(s = 1) {
   return m;
 }
 
-export function makeFlower() {
+export function makeFlower(r = Math.random) {
   const g = new THREE.Group();
   const cols = [0xff6b8a, 0xffd23f, 0xffffff, 0xb07cff, 0xff9a3d];
   box(g, 0.04, 0.3, 0.04, 0x3f8a4e, 0, 0.15, 0);
-  box(g, 0.16, 0.1, 0.16, cols[Math.floor(Math.random() * cols.length)], 0, 0.33, 0);
+  box(g, 0.16, 0.1, 0.16, cols[Math.floor(r() * cols.length)], 0, 0.33, 0);
   return g;
 }
 
@@ -512,6 +548,32 @@ export function makeHouse() {
       leaf.rotation.set(0.4, i * 1.4, 0.3);
     }
   }
+  // hammock hanging on the right side of the front porch
+  const hamCols = [0xe8d9b0, 0xc7362b, 0xe8d9b0, 0x3f6f8f, 0xe8d9b0, 0xc7362b, 0xe8d9b0];
+  for (let i = 0; i < 7; i++) {
+    const u = i / 6, x = 4.35 + u * 2.6, y = D + 1.55 - Math.sin(u * Math.PI) * 0.62;
+    const seg = box(g, 0.47, 0.05, 0.95, hamCols[i], x, y, -12.75);
+    seg.rotation.z = -Math.cos(u * Math.PI) * 0.62;
+  }
+  for (const [x, s] of [[4.12, 1], [7.18, -1]]) { const rope = box(g, 0.34, 0.03, 0.03, 0xd8cfb8, x, D + 1.72, -12.75); rope.rotation.z = -s * 0.75; }
+  box(g, 0.06, 0.5, 0.06, trim, 3.95, D + 2.1, -12.75); box(g, 0.06, 0.5, 0.06, trim, 7.35, D + 2.1, -12.75);
+
+  // backyard: small screened porch with a balcony on top and stairs coming down
+  const wood = 0xa9825a, scr = mat(0x7d868c, { transparent: true, opacity: 0.38 });
+  box(g, 5.6, 0.3, 3.7, found, -1.4, 0.15, -23.35);
+  for (const x of [-4.1, -1.4, 1.3]) box(g, 0.16, 2.8, 0.16, trim, x, 1.7, -25.1);
+  for (const x of [-4.1, 1.3]) box(g, 0.16, 2.8, 0.16, trim, x, 1.7, -21.7);
+  box(g, 5.3, 2.5, 0.04, scr, -1.4, 1.6, -25.1); box(g, 0.04, 2.5, 3.4, scr, -4.1, 1.6, -23.4); box(g, 0.04, 2.5, 3.4, scr, 1.3, 1.6, -23.4);
+  box(g, 5.4, 0.1, 0.1, trim, -1.4, 0.95, -25.12); box(g, 0.9, 2.1, 0.06, trim, 1.33, 1.35, -24.2); // kick rail + screen door
+  box(g, 5.9, 0.2, 3.9, wood, -1.4, 3.15, -23.4);                                                   // balcony deck
+  box(g, 5.9, 0.09, 0.1, trim, -1.4, 4.15, -25.3); box(g, 0.1, 0.09, 3.8, trim, -4.3, 4.15, -23.4);
+  for (let x = -4.25; x <= 1.5; x += 0.38) box(g, 0.07, 0.9, 0.07, trim, x, 3.7, -25.3);
+  for (let z = -25.2; z <= -21.6; z += 0.38) box(g, 0.07, 0.9, 0.07, trim, -4.3, 3.7, z);
+  box(g, 0.1, 0.09, 1.3, trim, 1.5, 4.15, -24.65); for (let z = -25.2; z <= -24.1; z += 0.38) box(g, 0.07, 0.9, 0.07, trim, 1.5, 3.7, z);
+  box(g, 1.7, 2.3, 1.7, siding, -1.4, 4.4, -21.7); box(g, 1.0, 1.9, 0.1, green, -1.4, 4.25, -22.57);  // balcony door dormer
+  for (let i = 0; i < 9; i++) box(g, 0.52, 0.14, 1.25, wood, 1.85 + i * 0.5, 2.95 - i * 0.34, -23.3);   // stairs down
+  for (const z of [-23.95, -22.65]) { const r = box(g, 5.3, 0.09, 0.09, trim, 3.9, 2.55, z); r.rotation.z = -0.6; }
+  for (const x of [1.6, 5.9]) for (const z of [-23.95, -22.65]) box(g, 0.1, x < 3 ? 4.1 : 1.0, 0.1, trim, x, x < 3 ? 2.05 : 0.5, z);
   return g;
 }
 
@@ -563,13 +625,30 @@ export function makeYard() {
   shape(g, new THREE.CylinderGeometry(0.12, 0.2, 0.7, 8), 0xb5654a, -13.4, 0.35, -7.2); shape(g, new THREE.CylinderGeometry(0.5, 0.3, 0.14, 10), 0xb5654a, -13.4, 0.75, -7.2);
 
   // backyard: the grill, on a little paver pad
-  const pad = box(g, 2.6, 0.05, 2, 0xb9b6ae, 3, 0.03, -25.6); pad.castShadow = false;
+  const pad = box(g, 2.6, 0.05, 2, 0xb9b6ae, 8, 0.03, -25.6); pad.castShadow = false;
   const grill = new THREE.Group();
   for (const [x, z] of [[-0.4, -0.25], [0.4, -0.25], [-0.4, 0.25], [0.4, 0.25]]) box(grill, 0.07, 0.8, 0.07, 0x2a2a2a, x, 0.4, z);
   box(grill, 1.1, 0.35, 0.7, 0x1c1c1c, 0, 0.95, 0);
   const lid = shape(grill, new THREE.CylinderGeometry(0.36, 0.36, 1.1, 10, 1, false, 0, Math.PI), 0x8f1d1d, 0, 1.12, 0); lid.rotation.z = Math.PI / 2; lid.rotation.y = Math.PI / 2;
   box(grill, 0.5, 0.05, 0.6, 0x9a7850, -0.82, 0.95, 0); box(grill, 0.6, 0.05, 0.05, 0xcfcfcf, 0, 1.25, 0.42);
-  grill.position.set(3, 0.05, -25.6); g.add(grill);
+  grill.position.set(8, 0.05, -25.6); g.add(grill);
+
+  // red hunting tower, left of the garage at the edge of the forest, with a green transformer crate nearby
+  const tower = new THREE.Group();
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const leg = box(tower, 0.18, 5, 0.18, 0x7a5533, sx * 1.0, 2.5, sz * 1.0); leg.rotation.z = -sx * 0.05; leg.rotation.x = sz * 0.05; }
+  for (const sz of [-1, 1]) for (const d of [-1, 1]) { const br = box(tower, 0.1, 2.9, 0.1, 0x8a6a48, 0, 2.4, sz * 0.98); br.rotation.z = d * 0.75; }
+  for (const sx of [-1, 1]) for (const d of [-1, 1]) { const br = box(tower, 0.1, 2.9, 0.1, 0x8a6a48, sx * 0.98, 2.4, 0); br.rotation.x = d * 0.75; }
+  box(tower, 2.6, 0.16, 2.6, 0x8a6a48, 0, 5, 0);
+  box(tower, 2.3, 1.9, 2.3, 0xa82a22, 0, 6.0, 0);
+  for (const [w, d, x, z] of [[1.7, 0.06, 0, 1.16], [1.7, 0.06, 0, -1.16], [0.06, 1.7, 1.16, 0], [0.06, 1.7, -1.16, 0]]) box(tower, w, 0.45, d, 0x1c1410, x, 6.25, z); // shooting slits
+  const tr = new THREE.ConeGeometry(0.7071, 0.8, 4); tr.rotateY(Math.PI / 4);
+  const troof = new THREE.Mesh(tr, mat(0x7d1f1a)); troof.scale.set(2.9, 1, 2.9); troof.position.y = 7.35; troof.castShadow = true; tower.add(troof);
+  for (const sx of [-1, 1]) { const rail = box(tower, 0.08, 5.3, 0.08, 0x9a7850, sx * 0.3, 2.5, 1.75); rail.rotation.x = 0.2; }
+  for (let i = 0; i < 10; i++) box(tower, 0.6, 0.06, 0.06, 0x9a7850, 0, 0.4 + i * 0.5, 2.25 - i * 0.1);
+  tower.position.set(-10.5, 0, 17.5); tower.rotation.y = 0.35; g.add(tower);
+  box(g, 2.0, 0.08, 1.7, 0xb9b6ae, -7.4, 0.04, 20.4);
+  box(g, 1.6, 1.25, 1.25, 0x4f6b45, -7.4, 0.7, 20.4); box(g, 1.66, 0.08, 1.31, 0x415a39, -7.4, 1.35, 20.4);
+  box(g, 0.3, 0.3, 0.02, 0xf2c230, -7.4, 0.85, 19.76); box(g, 0.5, 0.06, 0.03, 0x2a2a2a, -7.0, 1.05, 19.76);
 
   // by the lake: mini white dog house, campfire, picnic table and the chicken coop
   const dh = new THREE.Group();
