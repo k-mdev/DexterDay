@@ -357,12 +357,7 @@ export function makeFarmBits() {
     for (let i = 0; i <= len; i += 1.5) box(g, 0.14, 0.95, 0.14, 0x9a7850, x1 + ((x2 - x1) * i) / len, 0.47, z1 + ((z2 - z1) * i) / len);
   };
   // road "down the street"
-  for (let i = 0; i < 16; i++) { const r = box(g, 2.2, 0.04, 3, 0xb9a98c, 5 + i * 2.1, 0.02, 14 + Math.sin(i * 0.5) * 0.6); r.castShadow = false; r.rotation.y = Math.PI / 2; }
-  // mailbox at the end of Dexter's path
-  box(g, 0.12, 1, 0.12, 0x8a6a48, 2.6, 0.5, 11.6); box(g, 0.3, 0.26, 0.5, 0x3f6f8f, 2.6, 1.1, 11.6); box(g, 0.04, 0.2, 0.04, 0xd9342b, 2.78, 1.25, 11.75);
-  // chicken coop
-  box(g, 1.8, 1.3, 1.6, 0xb5382c, 13, 0.85, 20.5); box(g, 2.1, 0.14, 1.9, 0xf2ede4, 13, 1.56, 20.5); box(g, 0.5, 0.6, 0.06, 0x3a241a, 13, 0.55, 19.69);
-  for (const [x, z] of [[12.3, 21.2], [13.7, 21.2], [12.3, 19.8], [13.7, 19.8]]) box(g, 0.1, 0.3, 0.1, 0x8a6a48, x, 0.15, z);
+  for (let i = 0; i < 16; i++) { const r = box(g, 2.2, 0.04, 3, 0xb9a98c, 10.5 + i * 1.8, 0.02, 13 + Math.sin(i * 0.5) * 0.6); r.castShadow = false; r.rotation.y = Math.PI / 2; }
   // donkey's hay + trough
   box(g, 1.3, 0.8, 0.9, 0xe2c25a, 24, 0.4, 7.2); box(g, 1.3, 0.8, 0.9, 0xd9b84e, 24.3, 1.15, 7.3); box(g, 1.4, 0.4, 0.6, 0x8a6a48, 21.5, 0.25, 7);
   // pig pen with mud
@@ -521,45 +516,86 @@ export function makeHouse() {
 }
 
 /* ---------- Garage, driveway and yard bits ---------- */
-// Garage body: x 19..26, z -9..2 (doors face west, toward the driveway slab).
+// Layout when facing the house: garage + driveway are behind you (south, across the yard),
+// the lake is to the right (east), forest and a small side yard to the left (west),
+// and the grill is in the open backyard behind the house.
+// Garage body: x -2..9, z 16..23, doors on the north face looking at the house.
 export function makeYard() {
   const g = new THREE.Group();
-  const stucco = 0xd9c7a3, white = 0xf4f4f0;
-  const slab = box(g, 10.6, 0.08, 11.6, 0xd6d3cc, 13.9, 0.04, -3.5); slab.castShadow = false;
-  for (let i = 0; i < 3; i++) { const j = box(g, 10.6, 0.085, 0.05, 0xb9b6ae, 13.9, 0.04, -6.4 + i * 2.9); j.castShadow = false; }
-  for (let i = 0; i < 6; i++) { const d = box(g, 2.6 + Math.sin(i * 1.7) * 0.3, 0.04, 2.1, 0xb9a98c, 15.5 + Math.sin(i) * 0.3, 0.02, 3.2 + i * 2); d.castShadow = false; }
-  box(g, 7, 3.4, 11, stucco, 22.5, 1.7, -3.5);
+  const stucco = 0xd9c7a3, white = 0xf4f4f0, concrete = 0xd6d3cc;
+  // driveway slab between the lawn and the garage
+  const slab = box(g, 11.6, 0.08, 10.2, concrete, 3.5, 0.04, 11); slab.castShadow = false;
+  for (let i = 0; i < 3; i++) { const j = box(g, 0.05, 0.085, 10.2, 0xb9b6ae, 0.6 + i * 2.9, 0.04, 11); j.castShadow = false; }
+  // garage
+  box(g, 11, 3.4, 7, stucco, 3.5, 1.7, 19.5);
   const rg = new THREE.ConeGeometry(0.7071, 1.7, 4); rg.rotateY(Math.PI / 4);
-  const roof = new THREE.Mesh(rg, mat(0x6f7f76)); roof.scale.set(8, 1, 12); roof.position.set(22.5, 3.4 + 0.85, -3.5); roof.castShadow = true; g.add(roof);
-  for (const z of [-6.3, -0.8]) {
-    box(g, 0.12, 2.7, 4.3, white, 18.96, 1.35, z);
-    for (let i = 1; i < 4; i++) box(g, 0.14, 0.04, 4.3, 0xd8d8d2, 18.95, i * 0.68, z);
+  const roof = new THREE.Mesh(rg, mat(0x6f7f76)); roof.scale.set(12, 1, 8); roof.position.set(3.5, 3.4 + 0.85, 19.5); roof.castShadow = true; g.add(roof);
+  for (const x of [0.4, 5.1]) {
+    box(g, 4.3, 2.7, 0.12, white, x, 1.35, 15.96);
+    for (let i = 1; i < 4; i++) box(g, 4.3, 0.04, 0.14, 0xd8d8d2, x, i * 0.68, 15.95);
   }
-  box(g, 0.2, 3.4, 0.7, stucco, 18.95, 1.7, -3.55);
-  // side door + concrete pad
-  box(g, 1, 2.2, 0.1, white, 20.6, 1.1, 2.03); box(g, 0.5, 1.4, 0.1, mat(0x9fd6ff), 22.6, 1.9, 2.03); box(g, 2.2, 0.1, 1.6, 0xd6d3cc, 20.6, 0.05, 2.8);
+  box(g, 0.5, 3.4, 0.2, stucco, 2.75, 1.7, 15.95);
+  box(g, 0.95, 2.2, 0.1, white, 8.2, 1.1, 15.97); box(g, 1.8, 0.1, 1.4, concrete, 8.2, 0.05, 15.2); // side door + pad
   // climbing bushes with pink flowers
-  for (const z of [-3.5, 1.6]) {
-    shape(g, new THREE.IcosahedronGeometry(0.9, 0), 0x3f8a4e, 18.7, 2.2, z); shape(g, new THREE.IcosahedronGeometry(0.7, 0), 0x4c9a4a, 18.7, 1.1, z + 0.2);
-    box(g, 0.14, 0.14, 0.14, 0xe0457a, 18.2, 2.5, z + 0.3); box(g, 0.14, 0.14, 0.14, 0xe0457a, 18.3, 1.9, z - 0.4);
+  for (const x of [2.75, 7.4]) {
+    shape(g, new THREE.IcosahedronGeometry(0.85, 0), 0x3f8a4e, x, 2.3, 15.7); shape(g, new THREE.IcosahedronGeometry(0.65, 0), 0x4c9a4a, x + 0.15, 1.1, 15.7);
+    box(g, 0.14, 0.14, 0.14, 0xe0457a, x + 0.3, 2.6, 15.2); box(g, 0.14, 0.14, 0.14, 0xe0457a, x - 0.4, 2.0, 15.25);
   }
-  // blue recycling bin
+  // blue recycling bin at the house end of the driveway
   const bin = new THREE.Group();
   const bg = new THREE.CylinderGeometry(0.7071 * 0.95, 0.7071 * 0.75, 1.25, 4); bg.rotateY(Math.PI / 4);
   const body = new THREE.Mesh(bg, mat(0x1f5fd0)); body.position.y = 0.78; body.castShadow = true; bin.add(body);
   box(bin, 1.02, 0.12, 1.05, 0x184fb3, 0, 1.46, 0.02); box(bin, 0.5, 0.08, 0.1, 0x184fb3, 0, 1.5, -0.52);
   box(bin, 0.3, 0.3, 0.02, white, 0, 1.0, 0.46);
   for (const s of [-1, 1]) { const w = shape(bin, new THREE.CylinderGeometry(0.17, 0.17, 0.1, 10), 0x1a1a1a, s * 0.42, 0.17, -0.32); w.rotation.z = Math.PI / 2; }
-  bin.position.set(9.3, 0.08, -8.2); bin.rotation.y = 0.3; g.add(bin);
+  bin.position.set(8.4, 0.08, 6.7); bin.rotation.y = 0.3; g.add(bin);
   // Dexter's kiddie pool on the edge of the driveway
-  const pool = shape(g, new THREE.CylinderGeometry(1.75, 1.65, 0.38, 18), 0x18a7a7, 10.6, 0.27, 0.4);
+  const pool = shape(g, new THREE.CylinderGeometry(1.75, 1.65, 0.38, 18), 0x18a7a7, -0.6, 0.27, 8);
   pool.castShadow = false;
   const water = new THREE.Mesh(new THREE.CircleGeometry(1.6, 18), mat(0x7fe3e6, { roughness: 0.15, transparent: true, opacity: 0.9 }));
-  water.rotation.x = -Math.PI / 2; water.position.set(10.6, 0.475, 0.4); g.add(water);
-  // green utility box, post and bird bath on the lawn
+  water.rotation.x = -Math.PI / 2; water.position.set(-0.6, 0.475, 8); g.add(water);
+  // mailbox where the driveway meets the road
+  box(g, 0.12, 1, 0.12, 0x8a6a48, 10.2, 0.5, 11.9); box(g, 0.3, 0.26, 0.5, 0x3f6f8f, 10.2, 1.1, 11.9); box(g, 0.04, 0.2, 0.04, 0xd9342b, 10.38, 1.25, 12.05);
+
+  // side yard (left of the house): green utility box, post and bird bath
   box(g, 1.7, 1.1, 1.2, 0x5d6b4a, -10.5, 0.55, -8.6); box(g, 1.75, 0.08, 1.25, 0x4e5a3e, -10.5, 1.12, -8.6);
   shape(g, new THREE.CylinderGeometry(0.18, 0.18, 0.9, 8), 0x8a9478, -12.4, 0.45, -8);
   shape(g, new THREE.CylinderGeometry(0.12, 0.2, 0.7, 8), 0xb5654a, -13.4, 0.35, -7.2); shape(g, new THREE.CylinderGeometry(0.5, 0.3, 0.14, 10), 0xb5654a, -13.4, 0.75, -7.2);
+
+  // backyard: the grill, on a little paver pad
+  const pad = box(g, 2.6, 0.05, 2, 0xb9b6ae, 3, 0.03, -25.6); pad.castShadow = false;
+  const grill = new THREE.Group();
+  for (const [x, z] of [[-0.4, -0.25], [0.4, -0.25], [-0.4, 0.25], [0.4, 0.25]]) box(grill, 0.07, 0.8, 0.07, 0x2a2a2a, x, 0.4, z);
+  box(grill, 1.1, 0.35, 0.7, 0x1c1c1c, 0, 0.95, 0);
+  const lid = shape(grill, new THREE.CylinderGeometry(0.36, 0.36, 1.1, 10, 1, false, 0, Math.PI), 0x8f1d1d, 0, 1.12, 0); lid.rotation.z = Math.PI / 2; lid.rotation.y = Math.PI / 2;
+  box(grill, 0.5, 0.05, 0.6, 0x9a7850, -0.82, 0.95, 0); box(grill, 0.6, 0.05, 0.05, 0xcfcfcf, 0, 1.25, 0.42);
+  grill.position.set(3, 0.05, -25.6); g.add(grill);
+
+  // by the lake: mini white dog house, campfire, picnic table and the chicken coop
+  const dh = new THREE.Group();
+  box(dh, 1.5, 1.0, 1.7, 0xf6f6f2, 0, 0.5, 0);
+  const dr = new THREE.Shape(); dr.moveTo(-0.95, 0); dr.lineTo(0.95, 0); dr.lineTo(0, 0.75); dr.closePath();
+  const dRoof = new THREE.Mesh(new THREE.ExtrudeGeometry(dr, { depth: 1.9, bevelEnabled: false }), mat(0xe9e9e4)); dRoof.position.set(0, 1.0, -0.95); dRoof.castShadow = true; dh.add(dRoof);
+  box(dh, 0.65, 0.7, 0.06, 0x23201c, 0, 0.36, 0.86); box(dh, 0.5, 0.14, 0.04, 0x3f6f8f, 0, 0.88, 0.87);
+  dh.position.set(11.3, 0, -11.5); dh.rotation.y = -0.5; g.add(dh);
+  const fire = new THREE.Group();
+  for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; const r = makeRock(0.4); r.position.set(Math.cos(a) * 0.75, 0.1, Math.sin(a) * 0.75); fire.add(r); }
+  for (let i = 0; i < 3; i++) { const l = shape(fire, new THREE.CylinderGeometry(0.09, 0.09, 0.9, 6), 0x5a3c22, 0, 0.14, 0); l.rotation.z = Math.PI / 2; l.rotation.y = i * 1.05; }
+  const flameM = mat(0xff9a2e, { emissive: 0xff5a00, emissiveIntensity: 1.6 });
+  const flames = [];
+  for (let i = 0; i < 3; i++) flames.push(shape(fire, new THREE.ConeGeometry(0.22 - i * 0.05, 0.7 - i * 0.12, 5), i === 2 ? mat(0xffe27a, { emissive: 0xffc400, emissiveIntensity: 1.8 }) : flameM, (i - 1) * 0.16, 0.5, (i % 2) * 0.12));
+  for (const f of flames) f.castShadow = false;
+  fire.position.set(10.6, 0, -7.2); g.add(fire);
+  for (const [x, z, ry] of [[9.1, -6.4, 0.9], [11.2, -5.6, -0.3]]) { const log = shape(g, new THREE.CylinderGeometry(0.25, 0.25, 1.4, 8), 0x7a5533, x, 0.25, z); log.rotation.z = Math.PI / 2; log.rotation.y = ry; } // log seats
+  const table = new THREE.Group();
+  box(table, 2.4, 0.1, 1.1, 0xa9825a, 0, 0.85, 0);
+  for (const s of [-1, 1]) { box(table, 2.4, 0.08, 0.35, 0x9a7850, 0, 0.5, s * 0.85); for (const x of [-0.9, 0.9]) { const leg = box(table, 0.1, 0.95, 0.1, 0x8a6a48, x, 0.42, s * 0.45); leg.rotation.x = s * 0.5; } }
+  table.position.set(14, 0, -4.2); table.rotation.y = 0.25; g.add(table);
+  box(g, 1.8, 1.3, 1.6, 0xb5382c, 21, 0.85, -2.6); box(g, 2.1, 0.14, 1.9, 0xf2ede4, 21, 1.56, -2.6); box(g, 0.5, 0.6, 0.06, 0x3a241a, 21, 0.55, -1.79);
+  for (const [x, z] of [[20.3, -1.9], [21.7, -1.9], [20.3, -3.3], [21.7, -3.3]]) box(g, 0.1, 0.3, 0.1, 0x8a6a48, x, 0.15, z);
+  // a little dock into the lake
+  box(g, 1.3, 0.12, 4, 0xa9825a, 17, 0.3, -7.4); for (const [x, z] of [[16.45, -8.9], [17.55, -8.9], [16.45, -6]]) box(g, 0.14, 0.7, 0.14, 0x7a5533, x, 0.15, z);
+  g.userData.flames = flames;
   return g;
 }
 

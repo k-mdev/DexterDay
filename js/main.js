@@ -43,11 +43,11 @@ resize();
 
 /* ---------- World ---------- */
 const WORLD_R = 34;
-const POND = { x: -17, z: 8, r: 5 };
+const POND = { x: 21, z: -13, r: 7.5 }; // the lake, to the right of the house
 const BOWL = { x: -2.5, z: -9.3 };
 const BED = { x: -4.6, z: -13.2 };
-const POOL = { x: 10.6, z: 0.4, r: 1.5 };
-const GARAGE = { x0: 18.7, x1: 26.3, z0: -9.3, z1: 2.3 };
+const POOL = { x: -0.6, z: 8, r: 1.5 };
+const GARAGE = { x0: -2.3, x1: 9.3, z0: 15.7, z1: 23.3 };
 const trees = []; // {x,z,r}
 
 const ground = new THREE.Mesh(new THREE.CircleGeometry(110, 48), mat(0x6fb35a));
@@ -60,10 +60,10 @@ for (let i = 0; i < 9; i++) {
   const p = box(scene, 2 + Math.sin(i * 2.1) * 0.3, 0.04, 2.1, pathM, Math.sin(i * 0.9) * 0.5, 0.02, -10.3 + i * 2);
   p.castShadow = false;
 }
-const pond = new THREE.Mesh(new THREE.CircleGeometry(POND.r, 20), mat(0x4aa3d8, { transparent: true, opacity: 0.85, roughness: 0.2 }));
+const pond = new THREE.Mesh(new THREE.CircleGeometry(POND.r, 28), mat(0x4aa3d8, { transparent: true, opacity: 0.85, roughness: 0.2 }));
 pond.rotation.x = -Math.PI / 2; pond.position.set(POND.x, 0.03, POND.z); scene.add(pond);
-for (let i = 0; i < 12; i++) {
-  const a = (i / 12) * Math.PI * 2 + rand(-0.1, 0.1);
+for (let i = 0; i < 18; i++) {
+  const a = (i / 18) * Math.PI * 2 + rand(-0.1, 0.1);
   const r = makeRock(rand(0.6, 1.1));
   r.position.x = POND.x + Math.cos(a) * (POND.r + 0.3); r.position.z = POND.z + Math.sin(a) * (POND.r + 0.3);
   scene.add(r);
@@ -76,9 +76,10 @@ bowl.position.set(BOWL.x, 0, BOWL.z);
 scene.add(bowl);
 
 scene.add(makeFarmBits());
-scene.add(makeYard());
-const inHouseZone = (x, z) => x > -14.5 && x < 9 && z < -6;
-const inFarmZone = (x, z) => (x > 3 && z > 4 && z < 25) || (x > 7.5 && x < 28 && z > -11.5 && z <= 4);
+const yard = makeYard();
+scene.add(yard);
+const inHouseZone = (x, z) => x > -9 && x < 9 && z < -8 && z > -23;
+const inFarmZone = (x, z) => (x > -4.5 && z > 4 && z < 25) || (x > 8 && z < 0 && z > -22) || (x > -15 && x < 9 && z < -4 && z > -29); // driveway+road, lakeside, yard around the house
 const inWater = (x, z) => inPond(x, z) || Math.hypot(x - POOL.x, z - POOL.z) < POOL.r;
 const inPond = (x, z, pad = 0) => Math.hypot(x - POND.x, z - POND.z) < POND.r + pad;
 
@@ -95,7 +96,20 @@ for (let i = 0; i < 34; i++) {
     break;
   }
 }
-for (const [x, z, r] of [[9.3, -8.2, 0.45], [-10.5, -8.6, 0.8], [-13.4, -7.2, 0.3], [24.1, 7.2, 0.7], [13, 20.5, 1.0]]) trees.push({ x, z, r, mesh: new THREE.Object3D() }); // bin, utility box, bird bath, hay, coop
+for (const [x, z, r] of [[8.4, 6.7, 0.45], [-10.5, -8.6, 0.8], [-13.4, -7.2, 0.3], [24.1, 7.2, 0.7], [21, -2.6, 1.0], [11.3, -11.5, 0.95], [10.6, -7.2, 0.8], [14, -4.2, 1.2], [3, -25.6, 0.6]])
+  trees.push({ x, z, r, mesh: new THREE.Object3D() }); // bin, utility box, bird bath, hay, coop, dog house, campfire, picnic table, grill
+// the left side of the house is proper forest: pack in extra trees
+for (let i = 0; i < 26; i++) {
+  for (let tries = 0; tries < 20; tries++) {
+    const x = rand(-33, -15), z = rand(-26, 22);
+    if (x * x + z * z > 34.5 * 34.5 || trees.some((t) => Math.hypot(t.x - x, t.z - z) < 3.2)) continue;
+    const sc = rand(0.85, 1.3);
+    const t = makeTree(Math.random() < 0.7 ? 'pine' : 'round', sc);
+    t.position.set(x, 0, z); scene.add(t);
+    trees.push({ x, z, r: 0.55 * sc, mesh: t });
+    break;
+  }
+}
 for (let i = 0; i < 230; i++) {
   const a = rand(0, Math.PI * 2), r = rand(38, 75);
   const x = Math.cos(a) * r, z = Math.sin(a) * r;
@@ -106,10 +120,33 @@ for (let i = 0; i < 230; i++) {
 for (let i = 0; i < 70; i++) {
   const a = rand(0, Math.PI * 2), r = rand(3, 34);
   const x = Math.cos(a) * r, z = Math.sin(a) * r;
-  if (inPond(x, z, 0.5) || (x > -8 && x < 8 && z < -9.5 && z > -22) || (x > 8 && x < 27 && z > -10 && z < 3.5)) continue;
+  if (inPond(x, z, 0.5) || (x > -8 && x < 8 && z < -9.5 && z > -22) || (x > -3 && x < 10 && z > 5 && z < 24)) continue;
   const f = i % 6 === 0 ? makeBush() : i % 9 === 0 ? makeRock(rand(0.5, 1)) : makeFlower();
   f.position.x = x; f.position.z = z; scene.add(f);
 }
+
+/* ---------- Battle arena ----------
+ * Fights happen in their own scene: an empty misty clearing where thick fog swallows
+ * everything past the two fighters, so nothing from the yard can clip into them. */
+const battleScene = new THREE.Scene();
+battleScene.background = new THREE.Color(0x8fa3a8);
+battleScene.fog = new THREE.Fog(0x8fa3a8, 9, 27);
+{
+  const g = new THREE.Mesh(new THREE.CircleGeometry(70, 40), mat(0x5f9a55));
+  g.rotation.x = -Math.PI / 2; g.receiveShadow = true; battleScene.add(g);
+  battleScene.add(new THREE.HemisphereLight(0xe6f0ff, 0x4a6b3a, 1.0));
+  const l = new THREE.DirectionalLight(0xfff2d8, 1.7);
+  l.position.set(8, 16, 6); l.castShadow = true; l.shadow.mapSize.set(1024, 1024);
+  Object.assign(l.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 1, far: 50 });
+  l.shadow.bias = -0.002;
+  battleScene.add(l);
+  for (let i = 0; i < 26; i++) { // faint tree shapes far out in the mist, for depth
+    const a = (i / 26) * Math.PI * 2 + rand(-0.1, 0.1), r = rand(19, 30);
+    const t = makeTree('pine', rand(1.2, 2)); t.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); battleScene.add(t);
+  }
+  for (let i = 0; i < 30; i++) { const f = makeFlower(); const a = rand(0, 6.28), r = rand(2, 14); f.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); battleScene.add(f); }
+}
+let inArena = false;
 
 /* ---------- Height & collision ---------- */
 const PORCH_H = 0.7;
@@ -239,7 +276,7 @@ function placeSquirrel() {
 
 /* ---------- Friends ---------- */
 const FRIENDS = [
-  { kind: 'chickens', name: 'The Cluckers', icon: '🐔', skill: 'they fetch nearby treats for you', homes: [[12, 18.3], [14.2, 18.6], [13.2, 17.4]], speed: 8.5 },
+  { kind: 'chickens', name: 'The Cluckers', icon: '🐔', skill: 'they fetch nearby treats for you', homes: [[18.6, -3.4], [16.4, -2.6], [17.6, -4.6]], speed: 8.5 },
   { kind: 'donkey', name: 'Hank the donkey', icon: '🫏', skill: 'he kicks any rival that gets close', homes: [[22.5, 8.6]], speed: 9 },
   { kind: 'pig', name: 'Hamlet the pig', icon: '🐷', skill: 'he roots up buried snacks', homes: [[28, 19.5]], speed: 7.5 },
 ];
@@ -407,14 +444,12 @@ async function startBattle(e) {
   dex.y = 0; dex.dig = 0;
   dex.mesh.position.set(dex.x, 0, dex.z);
   dex.mesh.rotation.set(0, Math.atan2(dx, dz), 0);
-  e.mesh.position.set(dex.x + dx * SEP, 0, dex.z + dz * SEP);
-  e.mesh.rotation.set(0, Math.atan2(-dx, -dz), 0);
 
   // Serious Mode: swap in the absurdly muscular models for the duration of the fight.
   // Both live in an "arena" group that slowly turns, so the fighters circle each other
   // while the battle code keeps treating their local positions as fixed home spots.
   const look = RIVAL_LOOKS[e.key];
-  const mid = new THREE.Vector3(dex.x + dx * SEP / 2, 0, dex.z + dz * SEP / 2);
+  const mid = new THREE.Vector3(0, 0, 0); // centre of the battle arena scene
   const arena = new THREE.Group(); arena.position.copy(mid);
   const buffDex = makeBuffDog(DEXTER_LOOK);
   const buffFoe = makeBuffDog(look);
@@ -464,15 +499,20 @@ async function startBattle(e) {
       dex.mesh.visible = !!low; buffDex.visible = !low; dex.glitch = !!low;
     }, i * 85));
   };
-  for (const t of trees) t.mesh.visible = Math.hypot(t.x - mid.x, t.z - mid.z) > 11; // clear the arena
-  setTimeout(() => { if (S.mode !== 'battle') return; scene.add(arena); dex.mesh.visible = false; e.mesh.visible = false; }, 280); // hidden by the flash
+  // step into the arena: fog takes its colour from the current sky so dusk fights stay dusky
+  battleScene.background.copy(scene.background).lerp(new THREE.Color(0x9aa3a6), 0.55);
+  battleScene.fog.color.copy(battleScene.background);
+  battleScene.add(arena);
+  battleScene.add(dex.mesh); dex.mesh.visible = false; // low-poly Dexter comes along for the hit flicker
+  inArena = true;
   const friend = activeFriend();
   sfx.music('battle');
   const result = await runBattle({ state: S, enemy: e, dexMesh: buffDex, foeMesh: buffFoe, project, refresh: () => {}, friend: friend ? friend.kind : null, cam: camApi, glitch });
   dex.glitch = false;
-  scene.remove(arena); battleBuffs = [];
-  for (const t of trees) t.mesh.visible = true;
-  dex.mesh.visible = true; e.mesh.visible = true;
+  battleScene.remove(arena); battleBuffs = [];
+  inArena = false;
+  scene.add(dex.mesh); dex.mesh.visible = true;
+  dex.mesh.position.set(dex.x, dex.y, dex.z); dex.mesh.rotation.set(0, dex.face, 0);
   sfx.music(S.time >= 19.5 ? 'night' : 'day');
   battleCam = null;
   if (result === 'win') {
@@ -681,7 +721,7 @@ function pushOutOfHouse(p) {
 /* ---------- Theft cutscene ----------
  * Rather than piling on toasts and alarms, a theft pauses play for a moment and the
  * camera cuts to the culprit: one calm beat that tells you who took what. */
-let cut = null;
+let cut = null, camLift = 0;
 function startCutscene(e, kind, n) {
   S.mode = 'cutscene';
   cut = { e, kind, t: 0, dur: kind === 'bowl' ? 3.2 : 2.4, snap: true };
@@ -910,7 +950,13 @@ function updateCamera(dt) {
     camWant.set(p.x + 2.4 - cut.t * 0.3, 2.3, p.z + 4.8 - cut.t * 0.25); lookWant.set(p.x, 0.7, p.z); // slow push-in on the thief
     if (cut.snap) { camera.position.copy(camWant); camLook.copy(lookWant); cut.snap = false; }
   }
-  else { camWant.set(dex.x, dex.y + 8, dex.z + 9.5); lookWant.set(dex.x, dex.y + 1, dex.z); }
+  else {
+    // Behind the house or right in front of the garage the usual angle would be blocked,
+    // so the camera swings up and looks down over the roof instead.
+    const hidden = (dex.z < -21.3 && Math.abs(dex.x) < 10.5) || (dex.z > 7.5 && dex.z < 16.5 && dex.x > -4.5 && dex.x < 11.5);
+    camLift += ((hidden ? 1 : 0) - camLift) * Math.min(1, dt * 3);
+    camWant.set(dex.x, dex.y + 8 + camLift * 8, dex.z + 9.5 - camLift * 5.5); lookWant.set(dex.x, dex.y + 1, dex.z);
+  }
   const k = Math.min(1, dt * (battleCam ? 5 : 6));
   camera.position.lerp(camWant, k);
   camLook.lerp(lookWant, k);
@@ -932,11 +978,12 @@ function tick(dt) {
   if (S.mode === 'battle') { for (const r of rivals) animateDog(r.mesh, S.clock, 0, 0.5); for (const b of battleBuffs) animateBuff(b, S.clock); }
   animateDog(dex.mesh, S.clock, S.mode === 'play' ? dex.move : dex.glitch ? 1.3 : 0, S.mode === 'battle' ? 0.2 : 0.7);
   if (S.mode !== 'play' && S.mode !== 'battle') dex.mesh.visible = true;
+  yard.userData.flames.forEach((f, i) => { f.scale.y = 0.8 + Math.sin(S.clock * (9 + i * 3) + i) * 0.25; f.rotation.y += dt * 3; }); // campfire flicker
   const pm = house.userData.porchMat;
   pm.opacity += ((S.mode === 'play' && inPorch(dex.x, dex.z) ? 0.18 : 1) - pm.opacity) * Math.min(1, dt * 6);
   updateSky();
   updateCamera(dt);
-  renderer.render(scene, camera);
+  renderer.render(inArena ? battleScene : scene, camera);
 }
 
 /* ---------- Boot ---------- */

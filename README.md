@@ -32,7 +32,7 @@ then open <http://localhost:8791>. (It must be served over HTTP; opening `index.
 - **Battles**: Slobber (ruins their aim), Whine (guilt lowers their attack), Bark (reliable damage), Duh (anything could happen). Or eat a treat, bribe your way out with one, or run. Fighters prowl and circle each other on all fours, each move gets a 3D isometric portrait banner, and the camera cuts between shots.
 - **DexDetector**: a sweep radar that pings rival dogs (with a very quiet bark) as the line passes them.
 - **Friends down the street** tag along for 30 seconds: the chickens fetch nearby treats, Hank the donkey punts rivals into the forest, Hamlet the pig roots up snacks. Each also helps at the start of a battle.
-- **Extras**: dig spots, a squirrel worth chasing, a pond and kiddie pool that recharge zoomies, XP and levels, a day/night cycle, and a bed on the porch to end the day (rivals can't get onto the porch). Progress saves at the end of each day.
+- **Extras**: dig spots, a squirrel worth chasing, a lake and kiddie pool that recharge zoomies, XP and levels, a day/night cycle, and a bed on the porch to end the day (rivals can't get onto the porch). Progress saves at the end of each day.
 
 ## Tech
 

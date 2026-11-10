@@ -1,6 +1,5 @@
 // Turn-based "confidence" battles. Nobody gets hurt; the loser just slinks off embarrassed.
 import { sfx } from './sfx.js';
-import { playCutin } from './cutin.js';
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -75,7 +74,18 @@ const DUH_LINES = [
   'Dexter looks behind him for the dog everyone is mad at.',
 ];
 
-/* ---------- Attack cut-in fallback: a flat drawing, used only if the 3D portrait (cutin.js) can't start ---------- */
+/* ---------- Attack cut-in ---------- */
+// Which real photo of Dexter each move's banner uses, and what drips off it.
+const PHOTOS = {
+  bark: { src: 'happy.jpg', pos: '45% 55%' },
+  slobber: { src: 'happy.jpg', pos: '35% 78%', fx: ['💦', '💧', '💦'] },
+  treat: { src: 'happy.jpg', pos: '45% 55%', fx: ['🦴'] },
+  whine: { src: 'serious.jpg', pos: '50% 45%', fx: ['💧', '💧'] },
+  bribe: { src: 'serious.jpg', pos: '50% 45%', fx: ['🦴'] },
+  duh: { src: 'sideeye.jpg', pos: '55% 40%', fx: ['❓', '❔'] },
+};
+
+// Fallback drawing, used only if a photo fails to load.
 function dexFace(kind) {
   const fur = '#26262d', dark = '#17171b';
   const eye = (cx, cy, r = 13, ir = 8, dx = 0, dy = 0) =>
@@ -207,7 +217,11 @@ export async function runBattle(ctx) {
   };
   const cutin = async (kind, label, color) => {
     const wrap = $('b-cutin'), band = wrap.firstElementChild;
-    if (!playCutin(kind, $('ci-face'), 950)) $('ci-face').innerHTML = dexFace(kind); // flat drawing only as a fallback
+    // a real photo of Dexter, tilted in 3D and animated per move; the drawing is only a fallback
+    const face = $('ci-face'), ph = PHOTOS[kind] || PHOTOS.duh;
+    face.className = `ph-${kind}`;
+    face.innerHTML = `<div class="ph-card"><img src="img/dexter/${ph.src}" alt="Dexter" style="object-position:${ph.pos || '50% 50%'}"></div>${(ph.fx || []).map((e, i) => `<span class="ph-fx" style="--i:${i}">${e}</span>`).join('')}`;
+    face.querySelector('img').onerror = () => { face.className = ''; face.innerHTML = dexFace(kind); };
     $('ci-name').textContent = label;
     band.style.setProperty('--ci', color);
     wrap.classList.remove('hidden');
