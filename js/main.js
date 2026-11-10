@@ -1090,7 +1090,7 @@ function updateCamera(dt) {
       battleCam.shake *= Math.pow(0.02, dt);
     }
   }
-  else if (S.mode === 'dday') dday.camera(camWant, lookWant);
+  else if (S.mode === 'dday') { if (dday.camera(camWant, lookWant)) { camera.position.copy(camWant); camLook.copy(lookWant); } } // true = hard cut
   else if (cut) {
     const p = cut.e.mesh.position;
     camWant.set(p.x + 2.4 - cut.t * 0.3, 2.3, p.z + 4.8 - cut.t * 0.25); lookWant.set(p.x, 0.7, p.z); // slow push-in on the thief

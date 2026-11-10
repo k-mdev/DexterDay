@@ -2,7 +2,7 @@
 // hoses down ten entrenched squirrels with a slobber machine gun. Nobody is hurt: a
 // thoroughly slobbered squirrel just waves a white flag. Self-contained scene + logic.
 import * as THREE from 'three';
-import { mat, box, softBox, makeDexter, animateDog, makeSquirrel } from './models.js';
+import { mat, box, softBox, makeDexter, makeDog, animateDog, makeSquirrel, makeTree } from './models.js';
 import { sfx } from './sfx.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -13,7 +13,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
   const $ = (id) => document.getElementById(id);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xb7c4cc);
-  scene.fog = new THREE.Fog(0xb7c4cc, 34, 85);
+  scene.fog = new THREE.Fog(0xb7c4cc, 40, 105);
   scene.add(new THREE.HemisphereLight(0xe8eef5, 0x8a7a5a, 1.0));
   const sun = new THREE.DirectionalLight(0xfff4e0, 1.5);
   sun.position.set(-14, 26, 18); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
@@ -33,7 +33,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
 
   const solids = []; // {x, z, r}
   // beach obstacles: crossed log "hedgehogs"
-  for (const [x, z] of [[-14, 6], [-6, 8], [4, 5.5], [13, 7.5], [-10, 0], [0, -1.5], [9, 1], [17, -3], [-17, -5], [-3, -8], [6, -9]]) {
+  for (const [x, z] of [[-14, 6], [-7.5, 8], [8.5, 4.5], [14, 8], [-10, 0], [0, -1.5], [9, 1], [17, -3], [-17, -5], [-3, -8], [6, -9]]) {
     const h = new THREE.Group();
     for (let i = 0; i < 3; i++) { const b = box(h, 0.22, 2.4, 0.22, 0x5a4632, 0, 0.75, 0); b.rotation.set(i === 0 ? 0.9 : i === 1 ? -0.9 : 0, i * 1.05, i === 2 ? 0.9 : 0); }
     h.position.set(x, 0, z); h.rotation.y = rand(0, 3); scene.add(h); solids.push({ x, z, r: 0.9 });
@@ -111,6 +111,149 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
   softBox(du.inner, 0.08, 0.12, 0.08, 0x2a2a2a, 0.42, 0.9, 0.2);
   scene.add(dexMesh);
 
+  /* ---- Squirrel Normandy: the little town on the bluff beyond the bunkers ---- */
+  const TOWN_Y = 1.6;
+  const cottage = (x, z, w, h, d, roofC, ry = 0) => {
+    const g = new THREE.Group();
+    box(g, w, h, d, 0xefe6cf, 0, h / 2, 0);
+    for (const sx of [-1, 0, 1]) box(g, 0.12, h, 0.06, 0x4a3524, sx * (w / 2 - 0.06), h / 2, d / 2 + 0.01);            // timber framing
+    box(g, w, 0.12, 0.06, 0x4a3524, 0, h * 0.55, d / 2 + 0.01); box(g, w, 0.12, 0.06, 0x4a3524, 0, h - 0.06, d / 2 + 0.01);
+    for (const sx of [-1, 1]) { const b = box(g, 0.1, h * 0.62, 0.06, 0x4a3524, sx * w * 0.25, h * 0.27, d / 2 + 0.01); b.rotation.z = sx * 0.5; }
+    box(g, 0.5, 0.85, 0.07, 0x7a3b2a, 0, 0.42, d / 2 + 0.02);                                                        // squirrel-sized door
+    box(g, 0.4, 0.4, 0.07, 0xffd98a, w * 0.28, h * 0.75, d / 2 + 0.02); box(g, 0.4, 0.4, 0.07, 0xffd98a, -w * 0.28, h * 0.75, d / 2 + 0.02);
+    const rg = new THREE.ConeGeometry(0.7071, h * 0.9, 4); rg.rotateY(Math.PI / 4);
+    const roof = new THREE.Mesh(rg, mat(roofC)); roof.scale.set(w + 0.5, 1, d + 0.5); roof.position.y = h + h * 0.45; roof.castShadow = true; g.add(roof);
+    box(g, 0.3, 0.9, 0.3, 0x8a5a4a, w * 0.25, h + h * 0.55, 0);
+    g.position.set(x, TOWN_Y, z); g.rotation.y = ry; scene.add(g);
+  };
+  const roofs = [0x8b3f33, 0x5c6470, 0x9a4a3a, 0x6b5a4a];
+  [[-26, -33, 0.2], [-19, -36, -0.1], [-12, -32, 0.15], [-5, -37, 0], [6, -33, -0.2], [13, -36, 0.1], [20, -32, -0.15], [27, -36, 0.2],
+    [-22, -46, 0], [-13, -49, 0.2], [14, -48, -0.2], [23, -46, 0.1], [-30, -52, 0.1], [31, -52, -0.1]]
+    .forEach(([x, z, ry], i) => cottage(x, z, 3 + (i % 3) * 0.6, 2.4 + (i % 2) * 0.7, 3 + (i % 2) * 0.5, roofs[i % 4], ry));
+  // church with a tall steeple
+  box(scene, 4.5, 4.2, 8, 0xd9d2c0, 0, TOWN_Y + 2.1, -46);
+  { const r = new THREE.Shape(); r.moveTo(-2.6, 0); r.lineTo(2.6, 0); r.lineTo(0, 2.6); r.closePath();
+    const m = new THREE.Mesh(new THREE.ExtrudeGeometry(r, { depth: 8.4, bevelEnabled: false }), mat(0x5c6470)); m.position.set(0, TOWN_Y + 4.2, -50.2); m.castShadow = true; scene.add(m); }
+  box(scene, 2.6, 8.5, 2.6, 0xd9d2c0, 0, TOWN_Y + 4.25, -41.4);
+  { const sg = new THREE.ConeGeometry(0.7071, 6, 4); sg.rotateY(Math.PI / 4); const sp = new THREE.Mesh(sg, mat(0x5c6470)); sp.scale.set(3, 1, 3); sp.position.set(0, TOWN_Y + 11.5, -41.4); sp.castShadow = true; scene.add(sp); }
+  box(scene, 0.9, 1.5, 0.1, 0xffd98a, 0, TOWN_Y + 6.2, -40.05); box(scene, 1.1, 2, 0.1, 0x4a3524, 0, TOWN_Y + 1, -40.05);
+  // acorn monument in the square, a great oak, hedgerows and a windmill
+  { const base = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.5, 1, 10), mat(0x9a9d9f)); base.position.set(0, TOWN_Y + 0.5, -33); scene.add(base);
+    const nut = new THREE.Mesh(new THREE.SphereGeometry(0.9, 12, 10), mat(0xc98a3c)); nut.scale.y = 1.25; nut.position.set(0, TOWN_Y + 2.1, -33); nut.castShadow = true; scene.add(nut);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.95, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0x6b4a2e)); cap.position.set(0, TOWN_Y + 2.5, -33); scene.add(cap);
+    box(scene, 0.12, 0.4, 0.12, 0x6b4a2e, 0, TOWN_Y + 3.6, -33); }
+  for (const [x, z, sc] of [[-8, -42, 2.6], [9, -41, 2.2], [-34, -40, 2], [35, -42, 2.3], [-3, -56, 2.8], [18, -56, 2.4], [-20, -57, 2.2]]) { const t = makeTree('round', sc); t.position.set(x, TOWN_Y, z); scene.add(t); }
+  for (const [x, z, w, ry] of [[-16, -28, 12, 0], [16, -28, 12, 0], [-30, -42, 10, 1.57], [30, -42, 10, 1.57], [0, -53, 18, 0]]) { const h = box(scene, w, 0.9, 0.8, 0x4c8a45, x, TOWN_Y + 0.45, z); h.rotation.y = ry; }
+  const mill = new THREE.Group();
+  { const tg = new THREE.CylinderGeometry(1, 1.6, 5, 8); const tw = new THREE.Mesh(tg, mat(0xe6dcc2)); tw.position.y = 2.5; tw.castShadow = true; mill.add(tw);
+    const cg = new THREE.ConeGeometry(1.25, 1.4, 8); const c = new THREE.Mesh(cg, mat(0x8b3f33)); c.position.y = 5.7; mill.add(c); }
+  const sails = new THREE.Group(); sails.position.set(0, 4.6, 1.2); mill.add(sails);
+  for (let i = 0; i < 4; i++) { const sl = box(sails, 0.5, 3.4, 0.06, 0xf4f1e8, 0, 1.7, 0); const piv = new THREE.Group(); piv.rotation.z = i * Math.PI / 2; piv.add(sl); sails.add(piv); }
+  mill.position.set(-36, TOWN_Y, -34); mill.rotation.y = 0.5; scene.add(mill);
+
+  /* ---- the battle around you: allied dogs charging, tracer fire, acorn bombs ---- */
+  const ALLY_LOOKS = [
+    { color: 0xb07a3c, snoutColor: 0x2b2420, ear: 'pointy', tail: 'long' },                    // shepherd
+    { color: 0xe3c98f, ear: 'floppy', tail: 'long' },                                          // yellow lab
+    { color: 0x6b4a2e, chest: 0xf2f0ea, ear: 'floppy', tail: 'long' },                         // chocolate
+    { color: 0xf2f0ea, snoutColor: 0x8a5a2b, earColor: 0x8a5a2b, ear: 'floppy', tail: 'nub' }, // spotted mutt
+    { color: 0x3a3a40, chest: 0xc98a3c, ear: 'pointy', tail: 'nub', scale: 1.1 },              // rottie-ish
+  ];
+  const kit = (mesh) => {
+    softBox(mesh.userData.inner, 0.6, 0.3, 0.6, 0x5a6b3a, 0, 0.74, 0.02, 0.2);                 // vest
+    softBox(mesh.userData.head, 0.5, 0.18, 0.48, 0x4d5c32, 0, 0.3, 0.04, 0.48);                // helmet
+  };
+  const allies = [];
+  // Dexter's boat crew: two more black labs and a yellow lab. One of them is about to have a bad morning.
+  const BLACK_LAB = { color: 0x26262d, chest: 0xf2f0ea, ear: 'floppy', tail: 'long', collar: 0x3f6f8f };
+  const crew = [[BLACK_LAB, -0.95, 1.5], [{ ...BLACK_LAB, chest: null, collar: 0x38a860 }, 0.95, 1.9], [ALLY_LOOKS[1], -0.75, -0.8], [{ ...BLACK_LAB, chest: null, collar: 0xf2c230 }, 0.9, -1.2]]
+    .map(([look, ox, oz], i) => {
+      const mesh = makeDog({ ...look, tongue: true }); kit(mesh);
+      mesh.scale.multiplyScalar(1.35); scene.add(mesh);
+      return { mesh, base: mesh.scale.x, ox, oz, x: 0, z: 0, sp: 7.6 + i * 0.5, out: 0, gone: false };
+    });
+  const buddy = crew[0], FALL = { x: -2, z: 3.5 };
+  const stars = new THREE.Group();
+  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2; softBox(stars, 0.16, 0.16, 0.05, mat(0xffe36a, { emissive: 0xffc400, emissiveIntensity: 1 }), Math.cos(a) * 0.5, 0, Math.sin(a) * 0.5).rotation.z = 0.78; }
+  stars.visible = false; scene.add(stars);
+  const bonk = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), mat(0xc98a3c)); bonk.visible = false; scene.add(bonk);
+  for (let i = 0; i < 8; i++) {
+    const mesh = makeDog({ ...ALLY_LOOKS[i % ALLY_LOOKS.length], tongue: true });
+    kit(mesh);
+    mesh.scale.multiplyScalar(1.3); mesh.visible = false; scene.add(mesh);
+    allies.push({ mesh, base: mesh.scale.x, active: false, x: 0, z: 0, sp: 8, wob: rand(0, 6), out: 0 });
+  }
+  const tracerMat = new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.85 });
+  const tracers = [];
+  for (let i = 0; i < 10; i++) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 1.8), tracerMat); m.visible = false; scene.add(m); tracers.push({ mesh: m, v: new THREE.Vector3(), life: 0 }); }
+  const bombGeo = new THREE.SphereGeometry(0.34, 8, 6), capGeo = new THREE.SphereGeometry(0.36, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2);
+  const bombs = [], puffs = [];
+  for (let i = 0; i < 6; i++) {
+    const g = new THREE.Group(); const nut = new THREE.Mesh(bombGeo, mat(0xc98a3c)); nut.scale.y = 1.3; g.add(nut);
+    const cap = new THREE.Mesh(capGeo, mat(0x6b4a2e)); cap.position.y = 0.16; g.add(cap);
+    g.visible = false; scene.add(g); bombs.push({ mesh: g, v: new THREE.Vector3(), active: false });
+    const p = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), mat(0xe6d6a8, { transparent: true, opacity: 0 })); p.visible = false; scene.add(p); puffs.push({ mesh: p, t: 0 });
+  }
+  let allyT = 1, gunT = 0.5, bombT = 2;
+  function ambience(dt, fighting) {
+    sails.rotation.z += dt * 0.7;
+    // allied dogs sprint up the beach and vanish into the smoke at the bunker line
+    allyT -= dt;
+    if (allyT <= 0 && st.phase !== 'off') {
+      allyT = rand(0.7, 1.9);
+      const a = allies.find((o) => !o.active);
+      if (a) { a.active = true; a.out = 0; a.x = rand(-22, 22); a.z = SHORE_Z + rand(0.5, 2.5); a.sp = rand(6.5, 9.5); a.mesh.visible = true; a.mesh.scale.setScalar(a.base); }
+    }
+    for (const a of allies) {
+      if (!a.active) continue;
+      const vx = Math.sin(st.clock * 1.3 + a.wob) * 1.6;
+      a.z -= a.sp * dt; a.x += vx * dt;
+      a.mesh.position.set(a.x, 0, a.z); a.mesh.rotation.y = Math.atan2(vx, -a.sp);
+      animateDog(a.mesh, st.clock, 1.2, 1);
+      if (a.z < -13.5) { a.out += dt / 0.35; a.mesh.scale.setScalar(a.base * Math.max(0.01, 1 - a.out)); if (a.out >= 1) { a.active = false; a.mesh.visible = false; } } // gone
+    }
+    // distant gunfire: a quiet rattle plus a tracer streaking overhead
+    gunT -= dt;
+    if (gunT <= 0) {
+      gunT = rand(0.5, 1.7);
+      if (fighting) sfx.gunfire();
+      const t = tracers.find((o) => o.life <= 0);
+      if (t) {
+        const fromBluff = Math.random() < 0.6;
+        t.mesh.position.set(rand(-24, 24), rand(2.5, 7), fromBluff ? -19 : SHORE_Z + 6);
+        t.v.set(rand(-6, 6), rand(-0.5, 1.5), fromBluff ? 55 : -55);
+        t.mesh.lookAt(t.mesh.position.clone().add(t.v)); t.life = 0.75; t.mesh.visible = true;
+      }
+    }
+    for (const t of tracers) { if (t.life <= 0) continue; t.life -= dt; t.mesh.position.addScaledVector(t.v, dt); if (t.life <= 0) t.mesh.visible = false; }
+    // acorn bombs whistling down; they always land a few steps away from Dexter
+    bombT -= dt;
+    if (bombT <= 0 && fighting) {
+      bombT = rand(1.6, 3.4);
+      const b = bombs.find((o) => !o.active);
+      if (b) {
+        let x, z, tries = 0;
+        do { x = rand(-22, 22); z = rand(-13, SHORE_Z - 1); } while (Math.hypot(x - st.x, z - st.z) < 4.5 && tries++ < 10);
+        b.active = true; b.mesh.visible = true; b.mesh.position.set(x + rand(-6, 6), 24, z - 9); b.tx = x; b.tz = z;
+        b.v.set((x - b.mesh.position.x) / 1.5, -16, (z - b.mesh.position.z) / 1.5);
+        sfx.whistle();
+      }
+    }
+    for (let i = 0; i < bombs.length; i++) {
+      const b = bombs[i];
+      if (b.active) {
+        b.mesh.position.addScaledVector(b.v, dt); b.mesh.rotation.x += dt * 5; b.mesh.rotation.z += dt * 3;
+        if (b.mesh.position.y <= 0.2) {
+          b.active = false; b.mesh.visible = false;
+          const p = puffs[i]; p.t = 0.6; p.mesh.visible = true; p.mesh.position.set(b.mesh.position.x, 0.2, b.mesh.position.z);
+          sfx.boom(clamp(1 - Math.hypot(b.mesh.position.x - st.x, b.mesh.position.z - st.z) / 30, 0.25, 1));
+        }
+      }
+      const p = puffs[i];
+      if (p.t > 0) { p.t -= dt; const k = 1 - p.t / 0.6; p.mesh.scale.setScalar(0.4 + k * 2.6); p.mesh.material.opacity = 0.7 * (1 - k); if (p.t <= 0) p.mesh.visible = false; }
+    }
+  }
+
   const globGeo = new THREE.SphereGeometry(0.16, 8, 6), globMat = mat(0xbfeaff, { roughness: 0.1, emissive: 0x3a8fb8, emissiveIntensity: 0.4 });
   const acornGeo = new THREE.SphereGeometry(0.2, 8, 6), acornMat = mat(0x8a5a2b);
   let globs = [], acorns = [];
@@ -125,6 +268,10 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
   function start() {
     for (const g of globs) scene.remove(g.mesh); for (const a of acorns) scene.remove(a.mesh);
     globs = []; acorns = [];
+    for (const a of allies) { a.active = false; a.mesh.visible = false; }
+    for (const c of crew) { c.gone = false; c.out = 0; c.mesh.visible = true; c.mesh.scale.setScalar(c.base); c.mesh.rotation.set(0, Math.PI, 0); }
+    buddy.down = 0; stars.visible = false; bonk.visible = false;
+    for (const b of bombs) { b.active = false; b.mesh.visible = false; }
     for (const s of squirrels) { s.hp = 3; s.done = false; s.flag.visible = false; s.goo.visible = false; s.cool = rand(2, 5); s.mesh.rotation.set(0, 0, 0); }
     Object.assign(st, { phase: 'boat', t: 0, x: 0, y: 0.45, z: 36, face: Math.PI, move: 0, hp: MAX_HP, count: 0, hurt: 0, boatZ: 36 });
     ramp.rotation.x = 0;
@@ -152,13 +299,50 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
   function update(dt) {
     st.clock += dt; st.t += dt;
     foam.forEach((f, i) => { f.position.z = SHORE_Z + 0.4 + i * 2.2 + Math.sin(st.clock * 0.9 + i * 1.7) * 0.9; });
+    ambience(dt, st.phase === 'fight' || st.phase === 'boat');
 
     if (st.phase === 'boat') {
       st.boatZ = 36 - Math.min(1, st.t / 4.6) * (36 - (SHORE_Z + 3.4));
       boat.position.set(0, -0.1 + Math.sin(st.clock * 2.4) * 0.08, st.boatZ); boat.rotation.z = Math.sin(st.clock * 1.7) * 0.03;
       st.x = 0; st.z = st.boatZ + 0.6; st.y = 0.42 + boat.position.y; st.face = Math.PI; st.move = 0;
       if (st.t > 4.6) ramp.rotation.x = -Math.min(1, (st.t - 4.6) / 0.6) * 1.75;      // ramp drops
-      if (st.t > 5.4) { st.phase = 'fight'; st.t = 0; st.y = 0; caption('Move: WASD / stick  ·  Hold Space (or 🐾) to fire the slobber gun'); sfx.bark(); }
+      for (const c of crew) { c.x = c.ox; c.z = st.boatZ + c.oz; c.mesh.position.set(c.x, st.y, c.z); animateDog(c.mesh, st.clock, 0, 0.9); }
+      if (st.t > 5.4) { st.phase = 'charge'; st.t = 0; st.y = 0; caption('Go go go!'); sfx.bark(); }
+    } else if (st.phase === 'charge') {
+      // Cutscene: everyone piles off the boat. One of the labs takes an acorn to the helmet and
+      // flops over (he is fine, just very dramatic). Dexter sees it. Now it is personal.
+      const t = st.t;
+      const dz = SHORE_Z - 3 - st.z;
+      if (Math.abs(dz) > 0.2) { st.z += Math.sign(dz) * 6 * dt; st.move = 1; st.face = Math.PI; } else st.move = 0;
+      for (const c of crew) {
+        if (c.gone) continue;
+        if (c === buddy) {
+          const dx = FALL.x - c.x, dzz = FALL.z - c.z, d = Math.hypot(dx, dzz);
+          if (d > 0.3 && !buddy.down) { c.x += (dx / d) * 8 * dt; c.z += (dzz / d) * 8 * dt; c.mesh.rotation.set(0, Math.atan2(dx, dzz), 0); animateDog(c.mesh, st.clock, 1.2, 1); }
+          continue;
+        }
+        c.z -= c.sp * dt; c.x += Math.sin(st.clock * 1.5 + c.ox * 3) * dt;
+        c.mesh.rotation.y = Math.PI; animateDog(c.mesh, st.clock, 1.2, 1);
+        if (c.z < -13.5) { c.out += dt / 0.35; c.mesh.scale.setScalar(c.base * Math.max(0.01, 1 - c.out)); if (c.out >= 1) { c.gone = true; c.mesh.visible = false; } }
+      }
+      for (const c of crew) if (!c.gone) c.mesh.position.set(c.x, c === buddy && buddy.down ? 0.1 : 0, c.z);
+      if (t > 1.0 && t < 1.6) {                                   // the acorn comes in
+        const k = (t - 1.0) / 0.6; bonk.visible = true;
+        bonk.position.set(FALL.x + (1 - k) * 3, 0.9 + (1 - k) * 9, FALL.z - (1 - k) * 12);
+      }
+      if (t >= 1.6 && !buddy.down) {
+        buddy.down = 0.001; bonk.visible = false; stars.visible = true;
+        sfx.hit(); sfx.whine(); caption('Sergeant Biscuit takes an acorn straight to the helmet.');
+      }
+      if (buddy.down) {
+        buddy.down = Math.min(1, buddy.down + dt * 3.5);
+        buddy.mesh.rotation.set(0, 0.6, buddy.down * 1.5);        // keels over onto his side
+        animateDog(buddy.mesh, st.clock, 0, 0.1);
+        stars.position.set(buddy.x, 1.5, buddy.z); stars.rotation.y += dt * 4;
+      }
+      if (t > 3.0 && t - dt <= 3.0) { caption('Dexter saw the whole thing.'); }
+      if (t > 4.6 && t - dt <= 4.6) { caption('This is personal now.'); sfx.power(); }
+      if (t > 6.4) { st.phase = 'fight'; st.t = 0; caption('Move: WASD / stick  ·  Hold Space (or 🐾) to fire the slobber gun'); sfx.barkBig(); }
     } else if (st.phase === 'fight' || st.phase === 'end') {
       let ix = 0, iz = 0;
       if (st.phase === 'fight') {
@@ -204,7 +388,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
             gone = true; s.hp--; s.hit = 0.25; sfx.squeak();
             if (s.hp <= 0) {
               s.done = true; s.flag.visible = true; s.goo.visible = true; st.count++; sfx.pickup(); hud();
-              if (st.count >= TOTAL) { st.phase = 'end'; st.t = 0; caption('The beach is secure. Ten squirrels, thoroughly slobbered.'); sfx.win(); }
+              if (st.count >= TOTAL) { st.phase = 'end'; st.t = 0; caption('The beach is secure. Ten squirrels, thoroughly slobbered. Squirrel Normandy is free.'); sfx.win(); }
             }
           }
         }
@@ -221,20 +405,38 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
         }
         if (gone) { scene.remove(a.mesh); acorns.splice(i, 1); }
       }
-      if (st.phase === 'end' && st.t > 4.2) { st.phase = 'off'; onEnd(); }
+      if (buddy.down) {
+        if (st.phase === 'end') { buddy.down = Math.max(0.001, buddy.down - dt * 1.5); stars.visible = false; buddy.mesh.rotation.set(0, 0.6, buddy.down * 1.5); buddy.mesh.position.y = 0; animateDog(buddy.mesh, st.clock, 0, 1); }
+        else { animateDog(buddy.mesh, st.clock, 0, 0.15); stars.position.set(buddy.x, 1.5, buddy.z); stars.rotation.y += dt * 4; }
+      }
+      if (st.phase === 'end' && st.t > 5.5) { st.phase = 'off'; onEnd(); }
     }
     st.hurt = Math.max(0, st.hurt - dt);
     dexMesh.position.set(st.x, st.y, st.z);
     dexMesh.rotation.set(0, st.face, st.hurt > 0 ? Math.sin(st.clock * 50) * 0.15 : 0);
     animateDog(dexMesh, st.clock, st.move, 0.8);
+    if (st.phase === 'charge' && st.t > 2.6) {
+      const t = st.t;
+      du.head.rotation.y = t < 4.3 ? -0.85 * Math.min(1, (t - 2.6) * 3) : -0.85 * Math.max(0, 1 - (t - 4.3) * 4); // looks at his friend, then back at the bunkers
+      du.head.rotation.x = t > 4.3 ? 0.22 : 0.05;                                                                  // lowers his head: the stare
+      du.head.rotation.z = 0;
+      if (du.tongue) du.tongue.visible = false;
+    } else if (du.tongue) du.tongue.visible = true;
     tails.forEach((t, i) => { t.rotation.x = Math.sin(st.clock * 9 + i) * 0.3 * (0.3 + st.move); });
   }
 
   // where the camera should be this frame
   function camera(want, look) {
     if (st.phase === 'boat') { want.set(6.5 - st.t * 0.5, 3.2, st.boatZ + 6.5); look.set(0, 1.2, st.boatZ - 1.5); }
-    else if (st.phase === 'end') { want.set(st.x * 0.6, 14, st.z + 15); look.set(0, 1, -10); }
-    else { want.set(st.x * 0.85, 9.5, st.z + 11); look.set(st.x, 1, st.z - 2.5); }
+    else if (st.phase === 'charge') {
+      const t = st.t;
+      if (t < 1.0) { want.set(-5, 1.4, SHORE_Z - 8); look.set(0, 1, SHORE_Z); return t < 0.1; }                                  // low, facing the dogs pouring off the ramp
+      if (t < 3.0) { want.set(FALL.x + 4.6, 1.5, FALL.z - 4.4 + t * 0.2); look.set(FALL.x, 0.8, FALL.z); return t < 1.1; }       // on Sergeant Biscuit
+      if (t < 4.6) { want.set(st.x + 4.6, 2.0, st.z - 5.2); look.set(st.x - 0.6, 1.3, st.z - 0.6); return t < 3.1; }             // Dexter looks over
+      want.set(st.x + 0.7, 1.75, st.z - 5.6 + (t - 4.6) * 0.7); look.set(st.x, 1.6, st.z); return t < 4.7; // slow push-in on the scarred stare
+    }
+    else if (st.phase === 'end') { want.set(st.x * 0.4, 13 + st.t * 1.2, st.z + 14 - st.t * 2); look.set(0, 3, -34); } // rise to reveal the town
+    else { want.set(st.x * 0.85, 9, st.z + 11.5); look.set(st.x, 1.2, st.z - 5); }
   }
 
   return { scene, start, update, camera, state: st, squirrels };
