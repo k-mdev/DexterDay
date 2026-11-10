@@ -186,6 +186,16 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
 
   /* ---- far inland: the Central Sorting Office, and the Mailman ---- */
   const HQ_Z = -104, stone = 0x33363b, navy = 0x1c2740, gold = mat(0xd9b23c, { metalness: 0.7, roughness: 0.3 });
+  const sign = (parent, text, w, h, x, y, z, bg = '#f4f1e8', fg = '#1c2740') => {
+    const c = document.createElement('canvas'); c.width = 512; c.height = Math.max(32, Math.round((512 * h) / w));
+    const g = c.getContext('2d');
+    g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = fg; g.font = `900 ${Math.floor(c.height * 0.72)}px "Arial Black", Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(text, c.width / 2, c.height * 0.54, c.width * 0.92);
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, color: 0xd8d8d8 }));
+    m.position.set(x, y, z); parent.add(m); return m;
+  };
   box(scene, 30, 13, 12, stone, 0, TOWN_Y + 6.5, HQ_Z);
   for (const x of [-15, 15]) { box(scene, 6, 21, 6, 0x2c2f33, x, TOWN_Y + 10.5, HQ_Z + 3); for (let i = 0; i < 4; i++) box(scene, 1.2, 1.2, 1.2, 0x2c2f33, x + ((i % 2) * 2 - 1) * 2.4, TOWN_Y + 21.6, HQ_Z + 3 + (i > 1 ? 2.4 : -2.4)); }
   box(scene, 9, 26, 7, 0x2c2f33, 0, TOWN_Y + 13, HQ_Z - 1);
@@ -204,12 +214,25 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
   for (const x of [-11.5, -4.2, 4.2, 11.5]) {                                                                                   // long dark banners
     const b = new THREE.Group(); box(b, 2.2, 8.5, 0.08, navy, 0, -4.25, 0); box(b, 2.2, 0.3, 0.1, 0xd9b23c, 0, -8.4, 0); box(b, 2.5, 0.2, 0.2, 0x8a6f1e, 0, 0, 0);
     envelope(b, 0, -3.2, 0.06, 0.9);
+    sign(b, 'MAIL', 1.9, 0.7, 0, -5.3, 0.06, '#1c2740', '#d9b23c');
     b.position.set(x, TOWN_Y + 12.6, HQ_Z + 6.2); scene.add(b); banners.push(b);
   }
   box(scene, 8, 0.5, 4, 0x2c2f33, 0, TOWN_Y + 7.2, HQ_Z + 7.6);                                                                  // the balcony
   for (let x = -3.8; x <= 3.8; x += 0.95) box(scene, 0.22, 1.1, 0.22, stone, x, TOWN_Y + 8, HQ_Z + 9.45);
   box(scene, 8.2, 0.22, 0.3, stone, 0, TOWN_Y + 8.6, HQ_Z + 9.45);
   box(scene, 2.4, 4.6, 0.2, 0x0c0d0f, 0, TOWN_Y + 9.7, HQ_Z + 6.05);                                                             // the door he came out of
+  sign(scene, 'POST OFFICE', 7.5, 1.3, 0, TOWN_Y + 13.0, HQ_Z + 6.08);
+  sign(scene, 'CENTRAL SORTING OFFICE', 13, 1.1, 0, TOWN_Y + 2.7, HQ_Z + 6.08, '#1c2740', '#f4f1e8');
+  {
+    const tk = new THREE.Group(), white = 0xeeeeea;                                                                              // the mail truck
+    softBox(tk, 4.6, 2.7, 2.5, white, 0, 2.05, 0, 0.12); softBox(tk, 1.7, 1.9, 2.4, white, 3.1, 1.65, 0, 0.18);
+    box(tk, 1.0, 0.8, 2.42, 0x1a2530, 3.5, 2.1, 0);                                                                              // windscreen
+    box(tk, 4.62, 0.3, 2.52, 0x2e5fb8, 0, 1.55, 0); box(tk, 4.62, 0.14, 2.52, 0xb3271f, 0, 1.28, 0);                              // blue and red stripes
+    for (const x of [-1.5, 2.9]) for (const z of [-1.2, 1.2]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.4, 12), mat(0x151515)); w.rotation.x = Math.PI / 2; w.position.set(x, 0.55, z); tk.add(w); }
+    sign(tk, 'MAIL', 2.6, 0.9, -0.2, 2.6, 1.27, '#eeeeea', '#2e5fb8');
+    tk.position.set(13.5, TOWN_Y, HQ_Z + 17); tk.rotation.y = 0.35; scene.add(tk);
+  }
+  for (let i = 0; i < 7; i++) softBox(scene, 1.3 + (i % 3) * 0.4, 0.9 + (i % 2) * 0.4, 1.2, [0xb08a5a, 0xa67c4e, 0xc49a66][i % 3], -12 + (i % 4) * 1.5, TOWN_Y + 0.5 + Math.floor(i / 4) * 1.0, HQ_Z + 15 + (i % 2) * 0.8, 0.08); // parcels waiting to go out
   for (let i = 0; i < 8; i++) {                                                                                                 // a guard of honour: mailboxes
     const mb = new THREE.Group(); box(mb, 0.22, 1.5, 0.22, 0x23262a, 0, 0.75, 0); softBox(mb, 1.0, 0.8, 1.5, 0x25407a, 0, 1.8, 0, 0.45); box(mb, 0.08, 0.5, 0.08, 0xb3271f, 0.56, 2.1, 0.4);
     mb.position.set((i < 4 ? -1 : 1) * (5 + (i % 4) * 3.2), TOWN_Y, HQ_Z + 12 + (i % 4) * 0.4); scene.add(mb);
@@ -217,7 +240,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
   // The Mailman himself: greatcoat, peaked cap, mirrored glasses, a chest of medals and his satchel
   const mailman = new THREE.Group();
   {
-    const M = mailman, coat = 0x34465f, skin = 0xd9a882, black = 0x121316;
+    const M = mailman, coat = 0x5d93d6, skin = 0xd9a882, black = 0x121316; // unmistakable postal blue
     for (const s of [-1, 1]) { softBox(M, 0.5, 1.5, 0.55, navy, s * 0.36, 0.95, 0); box(M, 0.07, 1.5, 0.57, 0xb3271f, s * 0.6, 0.95, 0); softBox(M, 0.56, 0.5, 0.85, black, s * 0.36, 0.25, 0.1); } // trousers with a red stripe, jackboots
     softBox(M, 1.75, 2.3, 1.0, coat, 0, 2.75, 0, 0.25);                                              // greatcoat
     softBox(M, 2.0, 1.3, 1.15, coat, 0, 1.75, 0, 0.2);                                               // coat skirts
@@ -225,22 +248,25 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
     for (let i = 0; i < 5; i++) for (const s of [-1, 1]) softBox(M, 0.11, 0.11, 0.06, gold, s * 0.22, 3.6 - i * 0.42, 0.52);
     softBox(M, 1.82, 0.24, 1.06, black, 0, 2.15, 0); softBox(M, 0.34, 0.3, 0.1, gold, 0, 2.15, 0.54);  // belt and buckle
     for (const s of [-1, 1]) { softBox(M, 0.7, 0.16, 0.6, gold, s * 0.92, 3.92, 0); for (let i = 0; i < 4; i++) box(M, 0.06, 0.22, 0.06, gold, s * (0.7 + i * 0.15), 3.76, 0.3); } // epaulettes with fringe
-    softBox(M, 1.1, 0.32, 0.9, 0x2a3a52, 0, 3.98, 0);                                                // high collar
+    softBox(M, 1.1, 0.32, 0.9, navy, 0, 3.98, 0);                                                    // high collar
     const ribbons = [0xb3271f, 0xd9b23c, 0x2e6fb8, 0x3f8a4e, 0xf2f0ea, 0x7a4bc4];
     for (let r = 0; r < 3; r++) for (let i = 0; i < 4; i++) softBox(M, 0.17, 0.11, 0.05, ribbons[(r * 4 + i) % 6], -0.72 + i * 0.19, 3.5 - r * 0.14, 0.52); // ribbon bars
     for (let i = 0; i < 3; i++) { box(M, 0.08, 0.2, 0.04, ribbons[i], -0.66 + i * 0.26, 3.02, 0.52); const md = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.05, 10), gold); md.rotation.x = Math.PI / 2; md.position.set(-0.66 + i * 0.26, 2.84, 0.53); M.add(md); } // medals
     const strap = softBox(M, 0.18, 2.9, 0.08, 0x6b4a2e, 0.05, 3.0, 0.53); strap.rotation.z = 0.62;       // satchel strap, worn like a bandolier
-    softBox(M, 0.85, 0.95, 0.4, 0x7a5533, 1.05, 1.9, 0.25, 0.25); softBox(M, 0.9, 0.3, 0.44, 0x6b4a2e, 1.05, 2.3, 0.25, 0.3);
-    box(M, 0.5, 0.36, 0.04, 0xf4f1e8, 1.0, 2.5, 0.2).rotation.z = 0.2; box(M, 0.5, 0.36, 0.04, 0xe8e2d0, 1.15, 2.46, 0.3).rotation.z = -0.15; // letters poking out
+    softBox(M, 1.25, 1.25, 0.55, 0x7a5533, 1.15, 1.8, 0.3, 0.2); softBox(M, 1.3, 0.34, 0.6, 0x6b4a2e, 1.15, 2.36, 0.3, 0.3); // a big, overstuffed mail satchel
+    sign(M, 'MAIL', 1.0, 0.42, 1.15, 1.75, 0.585, '#f4f1e8', '#2e5fb8');
+    sign(M, 'MAIL', 0.62, 0.2, 0.52, 3.42, 0.515, '#f4f1e8', '#b3271f');                                                // name patch on the chest
+    for (let i = 0; i < 6; i++) { const e = box(M, 0.5, 0.36, 0.035, i % 2 ? 0xf4f1e8 : 0xe8dfc8, 0.78 + i * 0.15, 2.62 + (i % 3) * 0.05, 0.16 + (i % 2) * 0.22); e.rotation.z = (i - 2.5) * 0.09; }
     const head = new THREE.Group(); head.position.set(0, 4.5, 0.02); M.add(head);
     softBox(head, 0.8, 0.9, 0.8, skin, 0, 0, 0, 0.35);
-    softBox(head, 0.56, 0.14, 0.1, 0x2a2420, 0, -0.2, 0.41); softBox(head, 0.16, 0.2, 0.14, skin, 0, -0.04, 0.44);     // moustache, nose
+    softBox(head, 0.16, 0.2, 0.14, skin, 0, -0.04, 0.44); softBox(head, 0.34, 0.05, 0.04, 0x8a5a48, 0, -0.26, 0.41);   // nose, and a thin unamused mouth
     const lens = mat(0x0c1016, { metalness: 1, roughness: 0.08, emissive: 0x2a4a66, emissiveIntensity: 0.25 });
     for (const s of [-1, 1]) softBox(head, 0.32, 0.22, 0.06, lens, s * 0.2, 0.12, 0.41, 0.4);                           // mirrored glasses
     box(head, 0.86, 0.04, 0.04, gold, 0, 0.14, 0.4);
     softBox(head, 1.25, 0.5, 1.25, navy, 0, 0.72, 0.02, 0.3); softBox(head, 0.95, 0.24, 0.95, 0xb3271f, 0, 0.46, 0); softBox(head, 0.98, 0.06, 0.98, 0xd9b23c, 0, 0.36, 0); // peaked cap
     softBox(head, 0.9, 0.06, 0.5, black, 0, 0.36, 0.56).rotation.x = 0.25;
-    envelope(head, 0, 0.68, 0.66, 0.3);
+    envelope(head, 0, 0.82, 0.66, 0.26);
+    sign(head, 'MAIL', 0.7, 0.22, 0, 0.6, 0.655, '#1c2740', '#d9b23c');                                                   // across the front of the cap
     const arms = [];
     for (const s of [-1, 1]) {
       const a = new THREE.Group(); a.position.set(s * 1.08, 3.8, 0); M.add(a);
@@ -248,7 +274,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
       arms.push(a);
     }
     const letter = new THREE.Group(); letter.position.set(0, -2.0, 0.3); arms[1].add(letter);
-    box(letter, 0.8, 0.04, 0.55, 0xf4f1e8, 0, 0, 0); const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 10), mat(0x8f1d1d)); seal.position.y = 0.03; letter.add(seal);
+    box(letter, 0.8, 0.04, 0.55, 0xf4f1e8, 0, 0, 0); for (let i = 1; i < 5; i++) box(letter, 0.78, 0.035, 0.53, i % 2 ? 0xe8dfc8 : 0xf4f1e8, 0.02 * i, -0.04 * i, 0.01 * i); const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 10), mat(0x8f1d1d)); seal.position.y = 0.03; letter.add(seal);
     softBox(arms[0], 0.24, 0.5, 0.24, 0x3a241a, 0, -2.2, 0.1); softBox(arms[0], 0.36, 0.14, 0.36, 0x1a1a1a, 0, -2.5, 0.1);     // a heavy rubber stamp
     M.userData = { head, arms, letter };
   }
@@ -257,7 +283,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
 
   const STINGER = [
     [0, 'Far inland, at the Central Sorting Office, news of the landing arrived by first-class post.'],
-    [5.5, 'The Mailman read it twice.'],
+    [5.5, 'The Mailman read it twice. He had the route memorised already.'],
     [10.5, '"Let the dogs keep their beach," he said. "I deliver everywhere."'],
     [16.5, 'To be continued...'],
     [20, null],
