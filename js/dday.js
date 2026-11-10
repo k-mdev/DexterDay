@@ -12,10 +12,11 @@ const TOTAL = 10, SHORE_Z = 12, MAX_HP = 20;
 export function createDday({ keys, stick, fireHeld, onEnd }) {
   const $ = (id) => document.getElementById(id);
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xb7c4cc);
-  scene.fog = new THREE.Fog(0xb7c4cc, 40, 105);
-  scene.add(new THREE.HemisphereLight(0xe8eef5, 0x8a7a5a, 1.0));
-  const sun = new THREE.DirectionalLight(0xfff4e0, 1.5);
+  const GLOOM = 0x4b5157;
+  scene.background = new THREE.Color(GLOOM);
+  scene.fog = new THREE.Fog(GLOOM, 16, 70);
+  const hemi = new THREE.HemisphereLight(0xb9c4d0, 0x4a4436, 0.62); scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xc9d3e0, 0.85); // a weak, cold sun behind the smoke
   sun.position.set(-14, 26, 18); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 90 });
   sun.shadow.bias = -0.002;
@@ -23,11 +24,11 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
 
   /* ---- terrain ---- */
   const flat = (w, d, color, x, y, z) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat(color)); m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.receiveShadow = true; scene.add(m); return m; };
-  flat(240, 90, 0x4f7f95, 0, -0.06, SHORE_Z + 44);                 // sea
-  flat(240, 36, 0xd9c79a, 0, 0, SHORE_Z - 17.5);                   // beach
-  flat(240, 3, 0xc2b084, 0, 0.01, SHORE_Z - 1);                    // wet sand
-  box(scene, 240, 1.6, 40, 0x7da35a, 0, 0.8, -41.5);               // grassy bluff behind the beach
-  const slope = box(scene, 240, 0.3, 3.2, 0xc9b88c, 0, 0.75, -20.4); slope.rotation.x = -0.52;
+  flat(240, 90, 0x33505e, 0, -0.06, SHORE_Z + 44);                 // sea
+  flat(240, 36, 0xa5977a, 0, 0, SHORE_Z - 17.5);                   // beach
+  flat(240, 3, 0x8b7f66, 0, 0.01, SHORE_Z - 1);                    // wet sand
+  box(scene, 240, 1.6, 130, 0x55693f, 0, 0.8, -86.5);              // the bluff, and the dark country beyond it
+  const slope = box(scene, 240, 0.3, 3.2, 0x968a6e, 0, 0.75, -20.4); slope.rotation.x = -0.52;
   const foam = [];
   for (let i = 0; i < 3; i++) { const f = flat(240, 0.5, 0xf4f8fb, 0, 0.02, SHORE_Z + i * 2.2); f.material = mat(0xf4f8fb, { transparent: true, opacity: 0.7 }); foam.push(f); }
 
@@ -183,6 +184,108 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
   for (let i = 0; i < 4; i++) { const sl = box(sails, 0.5, 3.4, 0.06, 0xf4f1e8, 0, 1.7, 0); const piv = new THREE.Group(); piv.rotation.z = i * Math.PI / 2; piv.add(sl); sails.add(piv); }
   mill.position.set(-36, TOWN_Y, -34); mill.rotation.y = 0.5; scene.add(mill);
 
+  /* ---- far inland: the Central Sorting Office, and the Mailman ---- */
+  const HQ_Z = -104, stone = 0x33363b, navy = 0x1c2740, gold = mat(0xd9b23c, { metalness: 0.7, roughness: 0.3 });
+  box(scene, 30, 13, 12, stone, 0, TOWN_Y + 6.5, HQ_Z);
+  for (const x of [-15, 15]) { box(scene, 6, 21, 6, 0x2c2f33, x, TOWN_Y + 10.5, HQ_Z + 3); for (let i = 0; i < 4; i++) box(scene, 1.2, 1.2, 1.2, 0x2c2f33, x + ((i % 2) * 2 - 1) * 2.4, TOWN_Y + 21.6, HQ_Z + 3 + (i > 1 ? 2.4 : -2.4)); }
+  box(scene, 9, 26, 7, 0x2c2f33, 0, TOWN_Y + 13, HQ_Z - 1);
+  for (let i = 0; i < 9; i++) box(scene, 1.4, 1.3, 1, stone, -13.2 + i * 3.3, TOWN_Y + 13.6, HQ_Z + 5.5);                      // battlements
+  const slit = mat(0xffb347, { emissive: 0xff8a1e, emissiveIntensity: 1.4 });
+  for (const x of [-11, -7.5, 7.5, 11]) for (const y of [4, 9]) box(scene, 0.7, 2, 0.1, slit, x, TOWN_Y + y, HQ_Z + 6.03);       // lit window slits
+  const envelope = (parent, x, y, z, sc) => {                                                                                   // the emblem: a sealed letter
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.05, 0.06), gold); g.add(body);
+    for (const sx of [-1, 1]) { const f = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.06, 0.08), mat(0x8a6f1e)); f.position.set(sx * 0.4, 0.2, 0.04); f.rotation.z = -sx * 0.6; g.add(f); }
+    const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.06, 10), mat(0x8f1d1d)); seal.rotation.x = Math.PI / 2; seal.position.set(0, -0.05, 0.06); g.add(seal);
+    g.position.set(x, y, z); g.scale.setScalar(sc); parent.add(g); return g;
+  };
+  envelope(scene, 0, TOWN_Y + 20.5, HQ_Z + 2.6, 2.6);
+  const banners = [];
+  for (const x of [-11.5, -4.2, 4.2, 11.5]) {                                                                                   // long dark banners
+    const b = new THREE.Group(); box(b, 2.2, 8.5, 0.08, navy, 0, -4.25, 0); box(b, 2.2, 0.3, 0.1, 0xd9b23c, 0, -8.4, 0); box(b, 2.5, 0.2, 0.2, 0x8a6f1e, 0, 0, 0);
+    envelope(b, 0, -3.2, 0.06, 0.9);
+    b.position.set(x, TOWN_Y + 12.6, HQ_Z + 6.2); scene.add(b); banners.push(b);
+  }
+  box(scene, 8, 0.5, 4, 0x2c2f33, 0, TOWN_Y + 7.2, HQ_Z + 7.6);                                                                  // the balcony
+  for (let x = -3.8; x <= 3.8; x += 0.95) box(scene, 0.22, 1.1, 0.22, stone, x, TOWN_Y + 8, HQ_Z + 9.45);
+  box(scene, 8.2, 0.22, 0.3, stone, 0, TOWN_Y + 8.6, HQ_Z + 9.45);
+  box(scene, 2.4, 4.6, 0.2, 0x0c0d0f, 0, TOWN_Y + 9.7, HQ_Z + 6.05);                                                             // the door he came out of
+  for (let i = 0; i < 8; i++) {                                                                                                 // a guard of honour: mailboxes
+    const mb = new THREE.Group(); box(mb, 0.22, 1.5, 0.22, 0x23262a, 0, 0.75, 0); softBox(mb, 1.0, 0.8, 1.5, 0x25407a, 0, 1.8, 0, 0.45); box(mb, 0.08, 0.5, 0.08, 0xb3271f, 0.56, 2.1, 0.4);
+    mb.position.set((i < 4 ? -1 : 1) * (5 + (i % 4) * 3.2), TOWN_Y, HQ_Z + 12 + (i % 4) * 0.4); scene.add(mb);
+  }
+  // The Mailman himself: greatcoat, peaked cap, mirrored glasses, a chest of medals and his satchel
+  const mailman = new THREE.Group();
+  {
+    const M = mailman, coat = 0x34465f, skin = 0xd9a882, black = 0x121316;
+    for (const s of [-1, 1]) { softBox(M, 0.5, 1.5, 0.55, navy, s * 0.36, 0.95, 0); box(M, 0.07, 1.5, 0.57, 0xb3271f, s * 0.6, 0.95, 0); softBox(M, 0.56, 0.5, 0.85, black, s * 0.36, 0.25, 0.1); } // trousers with a red stripe, jackboots
+    softBox(M, 1.75, 2.3, 1.0, coat, 0, 2.75, 0, 0.25);                                              // greatcoat
+    softBox(M, 2.0, 1.3, 1.15, coat, 0, 1.75, 0, 0.2);                                               // coat skirts
+    box(M, 0.06, 2.9, 0.06, 0x24324a, 0, 2.35, 0.53);                                                // button line
+    for (let i = 0; i < 5; i++) for (const s of [-1, 1]) softBox(M, 0.11, 0.11, 0.06, gold, s * 0.22, 3.6 - i * 0.42, 0.52);
+    softBox(M, 1.82, 0.24, 1.06, black, 0, 2.15, 0); softBox(M, 0.34, 0.3, 0.1, gold, 0, 2.15, 0.54);  // belt and buckle
+    for (const s of [-1, 1]) { softBox(M, 0.7, 0.16, 0.6, gold, s * 0.92, 3.92, 0); for (let i = 0; i < 4; i++) box(M, 0.06, 0.22, 0.06, gold, s * (0.7 + i * 0.15), 3.76, 0.3); } // epaulettes with fringe
+    softBox(M, 1.1, 0.32, 0.9, 0x2a3a52, 0, 3.98, 0);                                                // high collar
+    const ribbons = [0xb3271f, 0xd9b23c, 0x2e6fb8, 0x3f8a4e, 0xf2f0ea, 0x7a4bc4];
+    for (let r = 0; r < 3; r++) for (let i = 0; i < 4; i++) softBox(M, 0.17, 0.11, 0.05, ribbons[(r * 4 + i) % 6], -0.72 + i * 0.19, 3.5 - r * 0.14, 0.52); // ribbon bars
+    for (let i = 0; i < 3; i++) { box(M, 0.08, 0.2, 0.04, ribbons[i], -0.66 + i * 0.26, 3.02, 0.52); const md = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.05, 10), gold); md.rotation.x = Math.PI / 2; md.position.set(-0.66 + i * 0.26, 2.84, 0.53); M.add(md); } // medals
+    const strap = softBox(M, 0.18, 2.9, 0.08, 0x6b4a2e, 0.05, 3.0, 0.53); strap.rotation.z = 0.62;       // satchel strap, worn like a bandolier
+    softBox(M, 0.85, 0.95, 0.4, 0x7a5533, 1.05, 1.9, 0.25, 0.25); softBox(M, 0.9, 0.3, 0.44, 0x6b4a2e, 1.05, 2.3, 0.25, 0.3);
+    box(M, 0.5, 0.36, 0.04, 0xf4f1e8, 1.0, 2.5, 0.2).rotation.z = 0.2; box(M, 0.5, 0.36, 0.04, 0xe8e2d0, 1.15, 2.46, 0.3).rotation.z = -0.15; // letters poking out
+    const head = new THREE.Group(); head.position.set(0, 4.5, 0.02); M.add(head);
+    softBox(head, 0.8, 0.9, 0.8, skin, 0, 0, 0, 0.35);
+    softBox(head, 0.56, 0.14, 0.1, 0x2a2420, 0, -0.2, 0.41); softBox(head, 0.16, 0.2, 0.14, skin, 0, -0.04, 0.44);     // moustache, nose
+    const lens = mat(0x0c1016, { metalness: 1, roughness: 0.08, emissive: 0x2a4a66, emissiveIntensity: 0.25 });
+    for (const s of [-1, 1]) softBox(head, 0.32, 0.22, 0.06, lens, s * 0.2, 0.12, 0.41, 0.4);                           // mirrored glasses
+    box(head, 0.86, 0.04, 0.04, gold, 0, 0.14, 0.4);
+    softBox(head, 1.25, 0.5, 1.25, navy, 0, 0.72, 0.02, 0.3); softBox(head, 0.95, 0.24, 0.95, 0xb3271f, 0, 0.46, 0); softBox(head, 0.98, 0.06, 0.98, 0xd9b23c, 0, 0.36, 0); // peaked cap
+    softBox(head, 0.9, 0.06, 0.5, black, 0, 0.36, 0.56).rotation.x = 0.25;
+    envelope(head, 0, 0.68, 0.66, 0.3);
+    const arms = [];
+    for (const s of [-1, 1]) {
+      const a = new THREE.Group(); a.position.set(s * 1.08, 3.8, 0); M.add(a);
+      softBox(a, 0.5, 1.6, 0.55, coat, 0, -0.8, 0); softBox(a, 0.56, 0.24, 0.6, gold, 0, -1.45, 0); softBox(a, 0.44, 0.44, 0.5, black, 0, -1.8, 0); // sleeve, cuff, glove
+      arms.push(a);
+    }
+    const letter = new THREE.Group(); letter.position.set(0, -2.0, 0.3); arms[1].add(letter);
+    box(letter, 0.8, 0.04, 0.55, 0xf4f1e8, 0, 0, 0); const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 10), mat(0x8f1d1d)); seal.position.y = 0.03; letter.add(seal);
+    softBox(arms[0], 0.24, 0.5, 0.24, 0x3a241a, 0, -2.2, 0.1); softBox(arms[0], 0.36, 0.14, 0.36, 0x1a1a1a, 0, -2.5, 0.1);     // a heavy rubber stamp
+    M.userData = { head, arms, letter };
+  }
+  mailman.position.set(0, TOWN_Y + 7.45, HQ_Z + 8.2); scene.add(mailman);
+  const bolt = new THREE.DirectionalLight(0xdfe8ff, 0); bolt.position.set(-20, 40, -60); scene.add(bolt);
+
+  const STINGER = [
+    [0, 'Far inland, at the Central Sorting Office, news of the landing arrived by first-class post.'],
+    [5.5, 'The Mailman read it twice.'],
+    [10.5, '"Let the dogs keep their beach," he said. "I deliver everywhere."'],
+    [16.5, 'To be continued...'],
+    [20, null],
+  ];
+  function updateStinger(dt) {
+    const t = st.t, mu = mailman.userData;
+    let i = 0; while (i < STINGER.length - 1 && t >= STINGER[i + 1][0]) i++;
+    if (i !== st.card) { st.card = i; if (STINGER[i][1]) caption(STINGER[i][1]); if (i === 2) { st.flash = 1; sfx.thunder(); } }
+    const skip = fireHeld();
+    if (skip && !st.skipHeld && t > 0.6 && i < STINGER.length - 1) st.t = STINGER[i + 1][0];
+    st.skipHeld = skip;
+    banners.forEach((b, k) => { b.rotation.x = Math.sin(st.clock * 1.4 + k) * 0.06; b.rotation.z = Math.sin(st.clock * 0.9 + k * 2) * 0.03; });
+    mu.head.rotation.y = Math.sin(st.clock * 0.5) * 0.12;
+    mu.head.rotation.x = i === 1 ? 0.35 : 0.05;                                   // reading the letter
+    mu.arms[1].rotation.x = i === 1 ? -1.15 : -0.25;
+    mu.letter.visible = i < 2 || t < 12.4;
+    // shot three: he brings the stamp down on the balcony rail. Return to sender.
+    const k = clamp((t - 11.6) / 0.9, 0, 1);
+    mu.arms[0].rotation.x = i >= 2 ? -2.2 * (k < 0.6 ? k / 0.6 : 1 - (k - 0.6) / 0.4) : 0; // raise slowly, slam fast
+    if (i >= 2 && t > 12.4 && t - dt <= 12.4) { sfx.hit(); st.flash = 0.6; }
+    st.flash = Math.max(0, (st.flash || 0) - dt * 2.2);
+    bolt.intensity = st.flash * 5;
+    scene.background.setHex(GLOOM).lerp(new THREE.Color(i === 3 ? 0x000000 : 0xc9d6e6), i === 3 ? Math.min(1, (t - 16.5) / 1.2) : st.flash * 0.8);
+    scene.fog.color.copy(scene.background);
+    if (i === 3) scene.fog.far = Math.max(2, 150 - (t - 16.5) * 130);             // fade to black
+    if (i === STINGER.length - 1) { scene.background.setHex(GLOOM); scene.fog.color.setHex(GLOOM); bolt.intensity = 0; st.phase = 'off'; onEnd(); }
+  }
+
   /* ---- the battle around you: allied dogs charging, tracer fire, acorn bombs ---- */
   const ALLY_LOOKS = [
     { color: 0xb07a3c, snoutColor: 0x2b2420, ear: 'pointy', tail: 'long' },                    // shepherd
@@ -254,12 +357,19 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
     g.visible = false; scene.add(g); bombs.push({ mesh: g, v: new THREE.Vector3(), active: false });
     const p = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), mat(0xe6d6a8, { transparent: true, opacity: 0 })); p.visible = false; scene.add(p); puffs.push({ mesh: p, t: 0 });
   }
+  // a pall of smoke hanging over everything, drifting slowly across the beach
+  const haze = [];
+  for (let i = 0; i < 16; i++) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), mat(0x2f3236, { transparent: true, opacity: 0.16 + (i % 4) * 0.03, depthWrite: false }));
+    m.scale.set(rand(6, 11), rand(2.2, 4), rand(5, 9)); m.position.set(rand(-34, 34), rand(3, 9), rand(-30, 14)); m.castShadow = false; scene.add(m);
+    haze.push({ m, v: rand(0.5, 1.4) });
+  }
   const smokes = [];
   for (let i = 0; i < 22; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), mat(0x6f6f6f, { transparent: true, opacity: 0, depthWrite: false })); m.visible = false; scene.add(m); smokes.push({ mesh: m, t: 0, life: 1, vx: 0, vy: 1, size: 1 }); }
   const smoke = (x, y, z, size = 1, life = 3.2, dark = 0.45) => {
     const o = smokes.find((q) => q.t <= 0) || smokes[0];
     o.t = o.life = life; o.size = size; o.vx = rand(0.4, 1.1); o.vy = rand(0.7, 1.3);
-    o.mesh.position.set(x, y, z); o.mesh.material.color.setScalar(dark + rand(-0.08, 0.08)); o.mesh.visible = true;
+    o.mesh.position.set(x, y, z); o.mesh.material.color.setScalar(dark * 0.6 + rand(-0.05, 0.05)); o.mesh.visible = true;
   };
   const divots = []; let divotI = 0;
   for (let i = 0; i < 14; i++) {
@@ -282,6 +392,8 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
   let allyT = 1, gunT = 0.5, bombT = 2, popT = 5, driftT = 0;
   function ambience(dt, fighting) {
     sails.rotation.z += dt * 0.7;
+    for (const h of haze) { h.m.position.x += h.v * dt; if (h.m.position.x > 40) h.m.position.x = -40; }
+    const far = st.phase === 'stinger' ? 150 : st.phase === 'end' ? 105 : 70; scene.fog.far += (far - scene.fog.far) * Math.min(1, dt * 1.5); // the smoke thins once the shooting stops
     // allied dogs sprint up the beach and vanish into the smoke at the bunker line
     allyT -= dt;
     if (allyT <= 0 && st.phase !== 'off') {
@@ -432,6 +544,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
     for (const s of squirrels) { s.hp = 3; s.done = false; s.flag.visible = false; s.goo.visible = false; s.cool = rand(2, 5); s.mesh.rotation.set(0, 0, 0); }
     Object.assign(st, { phase: 'boat', t: 0, x: 0, y: 0.45, z: 36, face: Math.PI, move: 0, hp: MAX_HP, count: 0, hurt: 0, boatZ: 36 });
     ramp.rotation.x = 0;
+    $('dday-hud').style.visibility = ''; scene.background.setHex(GLOOM); scene.fog.color.setHex(GLOOM); scene.fog.far = 70; bolt.intensity = 0;
     caption('June 6th. Somewhere deep inside Dexter\'s head.');
     hud();
   }
@@ -457,6 +570,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
     st.clock += dt; st.t += dt;
     foam.forEach((f, i) => { f.position.z = SHORE_Z + 0.4 + i * 2.2 + Math.sin(st.clock * 0.9 + i * 1.7) * 0.9; });
     ambience(dt, st.phase === 'fight' || st.phase === 'boat');
+    if (st.phase === 'stinger') updateStinger(dt);
 
     if (st.phase === 'boat') {
       st.boatZ = 36 - Math.min(1, st.t / 4.6) * (36 - (SHORE_Z + 3.4));
@@ -572,7 +686,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
         const skip = fireHeld();                                  // Space / fire skips to the next card
         if (skip && !st.skipHeld && st.t > 1) st.t = (card + 1) * CARD_T;
         st.skipHeld = skip;
-        if (st.t >= EPILOGUE.length * CARD_T) { st.phase = 'off'; onEnd(); }
+        if (st.t >= EPILOGUE.length * CARD_T) { st.phase = 'stinger'; st.t = 0; st.card = -1; st.skipHeld = true; $('dday-hud').style.visibility = 'hidden'; }
       }
     }
     st.hurt = Math.max(0, st.hurt - dt);
@@ -591,6 +705,12 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
 
   // where the camera should be this frame
   function camera(want, look) {
+    if (st.phase === 'stinger') {
+      const t = st.t, by = TOWN_Y + 7.45, bz = HQ_Z + 8.2;
+      if (t < 5.5) { want.set(9 - t * 0.5, TOWN_Y + 2 + t * 1.5, HQ_Z + 34); look.set(0, TOWN_Y + 7 + t * 1.6, HQ_Z); return t < 0.08; }          // up the walls of the sorting office
+      if (t < 10.5) { want.set(7.2 - (t - 5.5) * 0.3, by + 4.3, bz + 3.4); look.set(0, by + 3.7, bz + 0.5); return t < 5.58; }                    // in profile on the balcony, reading the letter
+      want.set(1.1, by + 2.3, bz + 6.4 - Math.min(5.5, t - 10.5) * 0.55); look.set(0, by + 4.1, bz); return t < 10.58;                           // low angle, slow push-in
+    }
     if (st.phase === 'boat') { want.set(6.5 - st.t * 0.5, 3.2, st.boatZ + 6.5); look.set(0, 1.2, st.boatZ - 1.5); }
     else if (st.phase === 'charge') {
       const t = st.t;

@@ -256,6 +256,7 @@ export const sfx = {
   gunfire: () => { const a = ac(); if (!a) return; const n = 3 + Math.floor(Math.random() * 5); for (let i = 0; i < n; i++) { noise(0.035, 0.03, a.currentTime + i * 0.07, null, 1800); tone(150, 0.03, 'square', 0.012, 70, i * 0.07); } },
   whistle: () => tone(1700, 1.5, 'sine', 0.012, 520),
   boom: (v = 1) => { const a = ac(); if (!a) return; tone(95, 0.4, 'sine', 0.13 * v, 32); noise(0.35, 0.05 * v, a.currentTime, null, 200); }, // deliberately soft
+  thunder: () => { const a = ac(); if (!a) return; for (let i = 0; i < 4; i++) { tone(70 - i * 8, 0.9, 'sine', 0.1 - i * 0.02, 28, i * 0.28); noise(0.6, 0.035, a.currentTime + i * 0.28, null, 120); } },
   spit: () => tone(520 + Math.random() * 160, 0.05, 'sine', 0.05, 220),
   squeak: () => { tone(1500, 0.06, 'square', 0.05, 2100); tone(1900, 0.06, 'square', 0.04, 1400, 0.06); },
   radarBark: () => {
