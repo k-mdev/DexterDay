@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {
   mat, box, makeDog, makeDexter, animateDog, RIVAL_LOOKS, makeSquirrel, makeTree, makeRock, makeFlower,
   makeBush, makeHouse, makeBowl, fillBowl, makeTreat, makeDigSpot, TREATS,
-  makeBuffDog, animateBuff, DEXTER_LOOK, makeDonkey, makeChicken, FRIEND_LOOKS, makeFarmBits,
+  makeBuffDog, animateBuff, DEXTER_LOOK, makeDonkey, makeChicken, FRIEND_LOOKS, makeFarmBits, makeYard,
 } from './models.js';
 import { sfx } from './sfx.js';
 import { runBattle, RIVALS } from './battle.js';
@@ -45,7 +45,9 @@ resize();
 const WORLD_R = 34;
 const POND = { x: -17, z: 8, r: 5 };
 const BOWL = { x: -2.5, z: -9.3 };
-const BED = { x: -3, z: -12.9 };
+const BED = { x: -4.6, z: -13.2 };
+const POOL = { x: 10.6, z: 0.4, r: 1.5 };
+const GARAGE = { x0: 18.7, x1: 26.3, z0: -9.3, z1: 2.3 };
 const trees = []; // {x,z,r}
 
 const ground = new THREE.Mesh(new THREE.CircleGeometry(110, 48), mat(0x6fb35a));
@@ -74,8 +76,10 @@ bowl.position.set(BOWL.x, 0, BOWL.z);
 scene.add(bowl);
 
 scene.add(makeFarmBits());
-const inHouseZone = (x, z) => x > -9 && x < 10 && z < -3;
-const inFarmZone = (x, z) => x > 3 && z > 4 && z < 25;
+scene.add(makeYard());
+const inHouseZone = (x, z) => x > -14.5 && x < 9 && z < -6;
+const inFarmZone = (x, z) => (x > 3 && z > 4 && z < 25) || (x > 7.5 && x < 28 && z > -11.5 && z <= 4);
+const inWater = (x, z) => inPond(x, z) || Math.hypot(x - POOL.x, z - POOL.z) < POOL.r;
 const inPond = (x, z, pad = 0) => Math.hypot(x - POND.x, z - POND.z) < POND.r + pad;
 
 for (let i = 0; i < 34; i++) {
@@ -91,6 +95,7 @@ for (let i = 0; i < 34; i++) {
     break;
   }
 }
+for (const [x, z, r] of [[9.3, -8.2, 0.45], [-10.5, -8.6, 0.8], [-13.4, -7.2, 0.3], [24.1, 7.2, 0.7], [13, 20.5, 1.0]]) trees.push({ x, z, r, mesh: new THREE.Object3D() }); // bin, utility box, bird bath, hay, coop
 for (let i = 0; i < 230; i++) {
   const a = rand(0, Math.PI * 2), r = rand(38, 75);
   const x = Math.cos(a) * r, z = Math.sin(a) * r;
@@ -101,31 +106,35 @@ for (let i = 0; i < 230; i++) {
 for (let i = 0; i < 70; i++) {
   const a = rand(0, Math.PI * 2), r = rand(3, 34);
   const x = Math.cos(a) * r, z = Math.sin(a) * r;
-  if (inPond(x, z, 0.5) || (x > -5.5 && x < 7.5 && z < -11 && z > -22)) continue;
+  if (inPond(x, z, 0.5) || (x > -8 && x < 8 && z < -9.5 && z > -22) || (x > 8 && x < 27 && z > -10 && z < 3.5)) continue;
   const f = i % 6 === 0 ? makeBush() : i % 9 === 0 ? makeRock(rand(0.5, 1)) : makeFlower();
   f.position.x = x; f.position.z = z; scene.add(f);
 }
 
 /* ---------- Height & collision ---------- */
-const rampH = (z) => clamp((3 * (-5.5 - z)) / 6, 0, 3);
+const PORCH_H = 0.7;
+const inPorch = (x, z) => x >= -7.5 && x <= 7.5 && z >= -21.5 && z <= -11.5;
+const inSteps = (x, z) => x >= -1.2 && x <= 1.2 && z > -11.5 && z <= -9.7;
+const stepH = (z) => clamp((PORCH_H * (-9.7 - z)) / 1.8, 0, PORCH_H);
 function surfaceY(x, z, y) {
-  let best = 0;
-  if (x >= -5 && x <= 7.3 && z >= -14.5 && z <= -11.5 && 3 <= y + 0.6) best = 3;
-  if (x >= 4.7 && x <= 7.3 && z > -11.5 && z <= -5.5) { const h = rampH(z); if (h <= y + 0.6) best = Math.max(best, h); }
-  return best;
+  if (inPorch(x, z) && PORCH_H <= y + 0.6) return PORCH_H;
+  if (inSteps(x, z)) return stepH(z);
+  return 0;
 }
 function blocked(x, z, y) {
   if (x * x + z * z > WORLD_R * WORLD_R) return true;
-  if (x > -5.5 && x < 5.5 && z > -22 && z < -14.05) return true;
-  if (x > 4.7 && x < 7.3 && z > -11.5 && z < -5.2 && rampH(z) > y + 0.6) return true;
-  if (y < 2) for (const t of trees) { const dx = x - t.x, dz = z - t.z; if (dx * dx + dz * dz < (t.r + 0.4) ** 2) return true; }
+  if (x > -5.5 && x < 5.5 && z > -22 && z < -14.05) return true;        // house walls
+  if (inPorch(x, z) && y + 0.6 < PORCH_H) return true;                   // porch foundation
+  if (y > 0.45 && !inPorch(x, z) && !inSteps(x, z)) return true;         // porch railing
+  if (x > GARAGE.x0 && x < GARAGE.x1 && z > GARAGE.z0 && z < GARAGE.z1) return true;
+  for (const t of trees) { const dx = x - t.x, dz = z - t.z; if (dx * dx + dz * dz < (t.r + 0.4) ** 2) return true; }
   return false;
 }
 function randomSpot(minR = 4, maxR = 32) {
   for (let i = 0; i < 80; i++) {
     const a = rand(0, Math.PI * 2), r = rand(minR, maxR);
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (inHouseZone(x, z) || inPond(x, z, 1) || blocked(x, z, 0)) continue;
+    if (inHouseZone(x, z) || inPond(x, z, 1) || Math.hypot(x - POOL.x, z - POOL.z) < 2.6 || blocked(x, z, 0)) continue;
     return { x, z };
   }
   return { x: 0, z: 10 };
@@ -136,7 +145,7 @@ const S = {
   mode: 'title', day: 1, time: 7, carried: 0, stash: 0, level: 1, xp: 0, hp: 30, maxHp: 30, atk: 6,
   stamina: 100, grace: 0, best: 0, today: null, nightWarned: false,
 };
-const dex = { mesh: makeDexter(), x: 0, y: 0, z: -5, vy: 0, face: 0, move: 0, dig: 0, digSpot: null, wet: false };
+const dex = { glitch: false, mesh: makeDexter(), x: 0, y: 0, z: -5, vy: 0, face: 0, move: 0, dig: 0, digSpot: null, wet: false };
 dex.mesh.scale.setScalar(1.45);
 scene.add(dex.mesh);
 const treats = [], digs = [], rivals = [];
@@ -176,7 +185,7 @@ function updateHud() {
   $('hud-xp').style.width = `${clamp(S.xp / xpNeed(), 0, 1) * 100}%`;
   fillBowl(bowl, S.stash);
 }
-const rankFor = (n) => (n < 10 ? 'Pup' : n < 25 ? 'Good Boy' : n < 50 ? 'Very Good Boy' : n < 100 ? 'Treat Baron' : n < 200 ? 'Snack Tycoon' : 'Legendary Snack Lord');
+const rankFor = (n) => (n < 10 ? 'Pup' : n < 25 ? 'Stank Dog' : n < 50 ? 'Very Stank Dog' : n < 100 ? 'Treat Baron' : n < 200 ? 'Snack Tycoon' : 'Legendary Snack Lord');
 
 /* ---------- Entities ---------- */
 function spawnTreat(type) {
@@ -237,7 +246,7 @@ const FRIENDS = [
 for (const f of FRIENDS) {
   f.state = 'home'; f.t = 0; f.cd = 0; f.skillT = 0; f.kick = 0;
   f.members = f.homes.map(([hx, hz], i) => {
-    const mesh = f.kind === 'chickens' ? makeChicken(i === 1 ? 0xc98a4b : 0xffffff) : f.kind === 'donkey' ? makeDonkey() : makeDog(FRIEND_LOOKS.pig);
+    const mesh = f.kind === 'chickens' ? makeChicken([0xa8552a, 0x8f4522, 0xb8672f][i]) : f.kind === 'donkey' ? makeDonkey() : makeDog(FRIEND_LOOKS.pig);
     mesh.position.set(hx, 0, hz); mesh.rotation.y = rand(0, 6);
     scene.add(mesh);
     return { mesh, hx, hz, move: 0, wx: hx, wz: hz, wt: rand(0, 3) };
@@ -285,10 +294,11 @@ function updateFriends(dt) {
     } else if (f.state === 'follow') {
       f.t -= dt; f.kick = Math.max(0, f.kick - dt);
       f.members.forEach((m, i) => {
-        const back = 1.9 + i * 1.3, side = f.members.length > 1 ? Math.sin(S.clock * 2 + i * 2) * 0.6 : 0;
+        const back = 0.8 + i * 1.3, side = 3.2 + (i % 2) * 1.0; // off to Dexter's side, not on his heels
         const tx = dex.x - Math.sin(dex.face) * back + Math.cos(dex.face) * side, tz = dex.z - Math.cos(dex.face) * back - Math.sin(dex.face) * side;
         const d = Math.hypot(tx - m.mesh.position.x, tz - m.mesh.position.z);
-        stepToward(m, tx, tz, d > 5 ? 13 : f.speed, dt, 0.5);
+        stepToward(m, tx, tz, d > 6 ? 13 : f.speed, dt, 0.7);
+        pushOutOfHouse(m.mesh.position);
       });
       const lead = f.members[0].mesh.position;
       if (f.kind === 'chickens') {
@@ -351,14 +361,14 @@ function startDay(day) {
   placeSquirrel();
   resetFriends();
   sfx.music('day'); sfx.ambient('day');
-  spawnT = Math.max(8, 16 - day); treatT = 6;
-  Object.assign(dex, { x: BED.x, y: 3, z: BED.z + 0.6, vy: 0, face: 0, dig: 0, digSpot: null });
+  spawnT = Math.max(14, 24 - day); treatT = 6;
+  Object.assign(dex, { x: BED.x, y: PORCH_H, z: BED.z + 0.95, vy: 0, face: 0, dig: 0, digSpot: null });
   S.mode = 'play';
   for (const id of ['title', 'summary', 'help']) $(id).classList.add('hidden');
   $('hud').classList.remove('hidden');
   if (isTouch) $('touch').classList.remove('hidden');
   updateHud();
-  toast(day === 1 ? 'Good morning, Dexter! Head downstairs and find some treats.' : `Day ${day}. The rivals are getting bolder...`);
+  toast(day === 1 ? 'Good morning, Dexter! Hop down the porch steps and find some treats.' : `Day ${day}. The rivals are getting bolder...`);
 }
 function endDay(passedOut) {
   const lostCarried = passedOut ? S.carried : 0;
@@ -399,14 +409,39 @@ async function startBattle(e) {
   e.mesh.position.set(dex.x + dx * 4.5, 0, dex.z + dz * 4.5);
   e.mesh.rotation.set(0, Math.atan2(-dx, -dz), 0);
   const px = -dz, pz = dx; // perpendicular
-  battleCam = {
-    pos: new THREE.Vector3(dex.x - dx * 4.6 + px * 4.2, 3.3, dex.z - dz * 4.6 + pz * 4.2),
-    look: new THREE.Vector3(dex.x + dx * 2.4, 1.7, dex.z + dz * 2.4),
+  const dPos = new THREE.Vector3(dex.x, 0, dex.z), fPos = new THREE.Vector3(dex.x + dx * 4.5, 0, dex.z + dz * 4.5);
+  const mid = dPos.clone().lerp(fPos, 0.5);
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const along = (o, a, b, h) => V(o.x + dx * a + px * b, h, o.z + dz * a + pz * b);
+  // Every shot is { pos(t), look(t) } so it can drift, push in or orbit while it is on screen.
+  const SHOTS = {
+    wide: (t) => { const a = Math.sin(t * 0.35) * 0.55 + 0.9, r = 8.2; return [V(mid.x + (px * Math.cos(a) - dx * Math.sin(a)) * r, 3.1 + Math.sin(t * 0.5) * 0.4, mid.z + (pz * Math.cos(a) - dz * Math.sin(a)) * r), V(mid.x, 1.6, mid.z)]; },
+    dex: (t) => [along(dPos, 4.9 - Math.min(t, 2) * 0.45, 2.0, 1.2), V(dPos.x, 1.95, dPos.z)],           // low-angle hero push-in
+    foe: (t) => [along(fPos, -4.9 + Math.min(t, 2) * 0.45, -2.0, 1.2), V(fPos.x, 1.8, fPos.z)],
+    overDex: (t) => [along(dPos, -2.6, 1.5 - t * 0.15, 3.0), V(fPos.x, 1.7, fPos.z)],                    // over Dexter's shoulder
+    overFoe: (t) => [along(fPos, 2.6, -1.5 + t * 0.15, 3.0), V(dPos.x, 1.7, dPos.z)],
+    side: (t) => [along(mid, t * 0.25 - 0.4, 6.4, 1.9), V(mid.x, 1.6, mid.z)],                           // tracking profile shot
+    top: (t) => [along(mid, 0, 0.6, 9.5 - Math.min(t, 3) * 0.5), V(mid.x, 0.5, mid.z)],
+    victory: (t) => { const a = t * 0.6; return [V(dPos.x + Math.sin(a) * 5, 1.3, dPos.z + Math.cos(a) * 5), V(dPos.x, 1.9, dPos.z)]; },
+  };
+  battleCam = { shot: 'foe', t0: S.clock, snap: true, shake: 0, SHOTS };
+  const camApi = {
+    shot(name, snap = true) { if (battleCam && battleCam.shot !== name) Object.assign(battleCam, { shot: name, t0: S.clock, snap }); },
+    shake(amt = 0.5) { if (battleCam) battleCam.shake = amt; },
+  };
+  // When Dexter takes a hit his concentration slips: he flickers back to the goofy
+  // low-poly model a few times before the serious one stabilises again.
+  const glitch = () => {
+    [1, 0, 1, 1, 0, 1, 0, 1, 1, 0].forEach((low, i) => setTimeout(() => {
+      if (S.mode !== 'battle' || !battleBuffs.length) return;
+      dex.mesh.position.set(buffDex.position.x, 0, buffDex.position.z);
+      dex.mesh.visible = !!low; buffDex.visible = !low; dex.glitch = !!low;
+    }, i * 85));
   };
   // Serious Mode: swap in the absurdly muscular models for the duration of the fight
   const look = RIVAL_LOOKS[e.key];
-  const buffDex = makeBuffDog(DEXTER_LOOK, 0x7a4bff);
-  const buffFoe = makeBuffDog(look, 0xff5a3c);
+  const buffDex = makeBuffDog(DEXTER_LOOK);
+  const buffFoe = makeBuffDog(look);
   buffDex.position.copy(dex.mesh.position); buffDex.rotation.y = dex.mesh.rotation.y;
   buffFoe.position.copy(e.mesh.position); buffFoe.rotation.y = e.mesh.rotation.y;
   buffFoe.scale.setScalar(0.72 + 0.34 * (look.scale ?? 1));
@@ -416,7 +451,8 @@ async function startBattle(e) {
   setTimeout(() => { if (S.mode !== 'battle') return; scene.add(buffDex, buffFoe); dex.mesh.visible = false; e.mesh.visible = false; }, 280); // hidden by the flash
   const friend = activeFriend();
   sfx.music('battle');
-  const result = await runBattle({ state: S, enemy: e, dexMesh: buffDex, foeMesh: buffFoe, project, refresh: () => {}, friend: friend ? friend.kind : null });
+  const result = await runBattle({ state: S, enemy: e, dexMesh: buffDex, foeMesh: buffFoe, project, refresh: () => {}, friend: friend ? friend.kind : null, cam: camApi, glitch });
+  dex.glitch = false;
   scene.remove(buffDex, buffFoe); battleBuffs = [];
   for (const t of trees) t.mesh.visible = true;
   dex.mesh.visible = true; e.mesh.visible = true;
@@ -434,6 +470,10 @@ async function startBattle(e) {
     S.hp = Math.ceil(S.maxHp * 0.3);
     e.state = 'flee'; e.beaten = true;
     toast('Dexter shakes it off. Eat a treat (Q) to get your confidence back.');
+  }
+  else if (result === 'bribe') {
+    S.today.stolen += e.loot; e.state = 'flee'; e.beaten = true;
+    toast(`${e.name} trots off with the bribe. Dexter sighs.`);
   }
   S.grace = result === 'run' ? 4.5 : 2.5;
   S.mode = 'play';
@@ -502,8 +542,17 @@ $('t-zoom').addEventListener('pointercancel', () => { touchZoom = false; });
 const near = (x, z, r) => Math.hypot(dex.x - x, dex.z - z) < r;
 function currentAction() {
   if (dex.dig > 0) return null;
-  if (dex.y > 2.5 && near(BED.x, BED.z, 1.9)) return { type: 'sleep', label: S.time < 17 ? 'Bed — it\'s a bit early, but nap anyway' : 'Go to sleep and end the day' };
-  if (dex.y < 1 && near(BOWL.x, BOWL.z, 2)) return { type: 'stash', label: S.carried > 0 ? `Stash ${S.carried} treat${S.carried > 1 ? 's' : ''} in your bowl` : `Your bowl (${S.stash} stashed)` };
+  if (dex.y > 0.5 && near(BED.x, BED.z, 1.9)) return { type: 'sleep', label: S.time < 17 ? 'Bed — it\'s a bit early, but nap anyway' : 'Go to sleep and end the day' };
+  if (dex.y < 0.4 && S.grace <= 0) {
+    let best = null, bd = 3.2;
+    for (const e of rivals) {
+      if (e.beaten || e.state === 'launched') continue;
+      const d = Math.hypot(e.mesh.position.x - dex.x, e.mesh.position.z - dex.z);
+      if (d < bd) { bd = d; best = e; }
+    }
+    if (best) return { type: 'fight', rival: best, label: `Challenge ${best.name}${best.loot > 0 ? ` (has ${best.loot} of your treats!)` : ''}` };
+  }
+  if (dex.y < 0.4 && near(BOWL.x, BOWL.z, 2)) return { type: 'stash', label: S.carried > 0 ? `Stash ${S.carried} treat${S.carried > 1 ? 's' : ''} in your bowl` : `Your bowl (${S.stash} stashed)` };
   if (dex.y < 1) for (const d of digs) if (near(d.x, d.z, 1.5)) return { type: 'dig', label: 'Dig!', spot: d };
   return null;
 }
@@ -512,6 +561,7 @@ function interact() {
   const a = currentAction();
   if (!a) { sfx.bark(); return; } // barking at nothing is always allowed
   if (a.type === 'sleep') endDay(false);
+  else if (a.type === 'fight') startBattle(a.rival);
   else if (a.type === 'stash') {
     if (S.carried > 0) {
       S.stash += S.carried; toast(`Stashed ${S.carried}! Safe-ish.`); S.carried = 0;
@@ -553,8 +603,8 @@ function updateDexter(dt) {
     if (dex.dig <= 0) finishDig();
   }
   const wantZoom = (keys.has('ShiftLeft') || keys.has('ShiftRight') || touchZoom) && len > 0.1 && S.stamina > 1;
-  const wet = inPond(dex.x, dex.z) && dex.y < 0.5;
-  if (wet && !dex.wet) { sfx.splash(); toast('Splash! Zoomies recharge fast in the pond.'); }
+  const wet = inWater(dex.x, dex.z) && dex.y < 0.5;
+  if (wet && !dex.wet) { sfx.splash(); toast('Splash! Zoomies recharge fast in the water.'); }
   dex.wet = wet;
   S.stamina = clamp(S.stamina + (wantZoom ? -28 : wet ? 45 : 13) * dt, 0, 100);
   const speed = (wantZoom ? 10.5 : 6) * (wet ? 0.7 : 1);
@@ -596,11 +646,15 @@ function updateTreats(dt) {
   if (treatT <= 0) { treatT = 7; if (treats.length < 10 + S.day * 2) spawnTreat(); }
 }
 
+function pushRect(p, x0, x1, z0, z1) {
+  if (p.x <= x0 || p.x >= x1 || p.z <= z0 || p.z >= z1) return;
+  const d = [p.x - x0, x1 - p.x, p.z - z0, z1 - p.z], m = Math.min(...d);
+  if (m === d[0]) p.x = x0; else if (m === d[1]) p.x = x1; else if (m === d[2]) p.z = z0; else p.z = z1;
+}
 function pushOutOfHouse(p) {
-  if (p.x > -5.8 && p.x < 5.8 && p.z > -22.3 && p.z < -13.8) {
-    if (p.z > -16) p.z = -13.8; else p.x = p.x < 0 ? -5.8 : 5.8;
-  }
-  if (p.x > 4.4 && p.x < 7.6 && p.z > -11.8 && p.z < -5.2) p.x = p.x < 6 ? 4.4 : 7.6;
+  pushRect(p, -7.9, 7.9, -21.9, -11.1);                 // porch + house
+  pushRect(p, -1.6, 1.6, -11.5, -9.5);                  // front steps
+  pushRect(p, GARAGE.x0 - 0.2, GARAGE.x1 + 0.2, GARAGE.z0 - 0.2, GARAGE.z1 + 0.2);
   for (const t of trees) {
     const dx = p.x - t.x, dz = p.z - t.z, d = Math.hypot(dx, dz), r = t.r + 0.35;
     if (d < r && d > 0.001) { p.x = t.x + (dx / d) * r; p.z = t.z + (dz / d) * r; }
@@ -609,9 +663,9 @@ function pushOutOfHouse(p) {
 
 function updateRivals(dt) {
   spawnT -= dt * (S.time >= 19 ? 1.7 : 1);
-  const maxRivals = Math.min(5, 2 + Math.floor(S.day / 2));
+  const maxRivals = Math.min(4, 1 + Math.floor((S.day + 1) / 2));
   if (spawnT <= 0) {
-    spawnT = Math.max(8, 24 - S.day * 2) + rand(0, 5);
+    spawnT = Math.max(16, 36 - S.day * 2) + rand(0, 8);
     if (rivals.filter((r) => r.state !== 'flee' && r.state !== 'launched').length < maxRivals) spawnRival();
   }
   for (let i = rivals.length - 1; i >= 0; i--) {
@@ -634,7 +688,7 @@ function updateRivals(dt) {
         if (e.loot > 0 && !e.beaten) { S.today.stolen += e.loot; toast(`${e.name} escaped into the forest with ${e.loot} treats.`); }
         scene.remove(e.mesh); rivals.splice(i, 1); continue;
       }
-    } else if (S.carried > 0 && dDex < 13 && dex.y < 1.5) {
+    } else if (S.carried > 0 && dDex < 13 && dex.y < 0.4) {
       tx = dex.x; tz = dex.z;
       if (!e.alerted) { e.alerted = true; sfx[RIVALS[e.key].cry](); toast(`${e.name} has spotted your treats!`); }
     } else if (S.stash > 0) {
@@ -658,8 +712,16 @@ function updateRivals(dt) {
     } else e.move = 0;
     if (e.state !== 'flee' || Math.hypot(p.x, p.z) < 33) pushOutOfHouse(p);
     animateDog(e.mesh, S.clock, e.move, e.state === 'flee' ? 0 : 0.6);
-    const canFight = !e.beaten && S.grace <= 0 && dex.y < 1 && dex.dig <= 0;
-    if (canFight && dDex < 1.25 && S.mode === 'play') { startBattle(e); return; }
+    const canFight = !e.beaten && S.grace <= 0 && dex.y < 0.4 && dex.dig <= 0;
+    if (canFight && e.state !== 'flee' && dDex < 1.25 && S.mode === 'play') {
+      if (Math.random() < 0.12) { toast(`${e.name} ambushes Dexter!`); startBattle(e); return; } // rare forced fight
+      if (S.carried > 0) {
+        S.carried--; e.loot++; e.state = 'flee'; S.grace = 1.5;
+        sfx.swipe(); sfx[RIVALS[e.key].cry]();
+        toast(`${e.name} snatched a treat and bolted! Catch up and press E to challenge.`);
+        updateHud();
+      }
+    }
   }
 }
 
@@ -682,6 +744,51 @@ function updateSquirrel(dt) {
     toast('SQUIRREL! It panics and drops its acorn stash. +3');
     placeSquirrel(); updateHud();
   }
+}
+
+
+/* ---------- DexDetector ---------- */
+// Dexter-centred, north-up. The sweep line pings each dog it passes: the blip
+// lights up and blinks out, and Dexter lets out a very, very quiet bark.
+const radarCv = $('radar'), rctx = radarCv.getContext('2d');
+const RADAR_RANGE = 42;
+let sweep = 0;
+function updateRadar(dt) {
+  const W = radarCv.width, c = W / 2, R = c - 5;
+  const prev = sweep;
+  const stepA = dt * 2.4;
+  sweep = (sweep + stepA) % (Math.PI * 2);
+  rctx.clearRect(0, 0, W, W);
+  rctx.fillStyle = 'rgba(8, 32, 18, 0.82)';
+  rctx.beginPath(); rctx.arc(c, c, R, 0, Math.PI * 2); rctx.fill();
+  rctx.strokeStyle = 'rgba(90, 255, 140, 0.28)'; rctx.lineWidth = 1;
+  for (const k of [1 / 3, 2 / 3, 1]) { rctx.beginPath(); rctx.arc(c, c, R * k, 0, Math.PI * 2); rctx.stroke(); }
+  rctx.beginPath(); rctx.moveTo(c - R, c); rctx.lineTo(c + R, c); rctx.moveTo(c, c - R); rctx.lineTo(c, c + R); rctx.stroke();
+  for (let i = 0; i < 14; i++) { // trailing glow behind the sweep line
+    const a = sweep - i * 0.045;
+    rctx.strokeStyle = `rgba(90, 255, 140, ${0.5 * (1 - i / 14)})`; rctx.lineWidth = 2;
+    rctx.beginPath(); rctx.moveTo(c, c); rctx.lineTo(c + Math.sin(a) * R, c - Math.cos(a) * R); rctx.stroke();
+  }
+  const hx = clamp(-dex.x / RADAR_RANGE, -1, 1) * R, hz = clamp((-16 - dex.z) / RADAR_RANGE, -1, 1) * R; // home
+  rctx.fillStyle = 'rgba(255, 255, 255, 0.45)'; rctx.fillRect(c + hx - 3, c + hz - 3, 6, 6);
+  for (const e of rivals) {
+    if (e.state === 'launched') continue;
+    const rx = e.mesh.position.x - dex.x, rz = e.mesh.position.z - dex.z;
+    const dist = Math.hypot(rx, rz);
+    const ang = (Math.atan2(rx, -rz) + Math.PI * 2) % (Math.PI * 2);
+    if ((ang - prev + Math.PI * 2) % (Math.PI * 2) <= stepA) { e.ping = 1; sfx.radarBark(); }
+    e.ping = Math.max(0, (e.ping || 0) - dt / 1.6);
+    if (e.ping <= 0) continue;
+    const rr = Math.min(1, dist / RADAR_RANGE) * R;
+    const lit = e.ping > 0.75 || Math.floor(e.ping * 14) % 2 === 0; // blink as it fades
+    if (!lit) continue;
+    const bx = c + Math.sin(ang) * rr, by = c - Math.cos(ang) * rr;
+    rctx.fillStyle = e.loot > 0 ? `rgba(255, 220, 80, ${e.ping + 0.2})` : `rgba(255, 80, 70, ${e.ping + 0.2})`;
+    rctx.beginPath(); rctx.arc(bx, by, 4.5, 0, Math.PI * 2); rctx.fill();
+    rctx.strokeStyle = `rgba(255, 255, 255, ${e.ping * 0.6})`; rctx.lineWidth = 1;
+    rctx.beginPath(); rctx.arc(bx, by, 4.5 + (1 - e.ping) * 9, 0, Math.PI * 2); rctx.stroke();
+  }
+  rctx.fillStyle = '#fff'; rctx.beginPath(); rctx.arc(c, c, 3, 0, Math.PI * 2); rctx.fill();
 }
 
 const SKY = [ // hour, sky, sun intensity, hemi intensity, window glow
@@ -712,8 +819,9 @@ function updatePlay(dt) {
     if (S.mode !== 'play') return;
     updateSquirrel(dt);
     updateFriends(dt);
+    updateRadar(dt);
     if (S.time >= 19.5) { sfx.music('night'); sfx.ambient('night'); }
-    if (S.time >= 21 && !S.nightWarned) { S.nightWarned = true; sfx.night(); toast('It\'s getting dark. Head upstairs to bed — raccoons are about!'); }
+    if (S.time >= 21 && !S.nightWarned) { S.nightWarned = true; sfx.night(); toast('It\'s getting dark. Head to your bed on the porch — raccoons are about!'); }
     if (S.time >= 24) { endDay(true); return; }
   }
   const a = currentAction(), pr = $('prompt');
@@ -727,7 +835,16 @@ function updateCamera(dt) {
     const a = S.clock * 0.12;
     camWant.set(Math.sin(a) * 26, 11, -8 + Math.cos(a) * 26 * 0.6 + 14);
     lookWant.set(0, 2.5, -12);
-  } else if (battleCam) { camWant.copy(battleCam.pos); lookWant.copy(battleCam.look); }
+  } else if (battleCam) {
+    const [p, l] = battleCam.SHOTS[battleCam.shot](S.clock - battleCam.t0);
+    camWant.copy(p); lookWant.copy(l);
+    if (battleCam.snap) { camera.position.copy(p); camLook.copy(l); battleCam.snap = false; } // hard cut
+    if (battleCam.shake > 0.01) {
+      camWant.x += (Math.random() - 0.5) * battleCam.shake; camWant.y += (Math.random() - 0.5) * battleCam.shake;
+      camera.position.x += (Math.random() - 0.5) * battleCam.shake; camera.position.y += (Math.random() - 0.5) * battleCam.shake * 0.6;
+      battleCam.shake *= Math.pow(0.02, dt);
+    }
+  }
   else { camWant.set(dex.x, dex.y + 8, dex.z + 9.5); lookWant.set(dex.x, dex.y + 1, dex.z); }
   const k = Math.min(1, dt * (battleCam ? 5 : 6));
   camera.position.lerp(camWant, k);
@@ -747,8 +864,10 @@ function tick(dt) {
   if (S.mode === 'play') updatePlay(dt);
   if (S.mode === 'title') { dex.mesh.position.set(0, 0, -5); dex.mesh.rotation.y = Math.sin(S.clock * 0.5) * 0.5; }
   if (S.mode === 'battle') { for (const r of rivals) animateDog(r.mesh, S.clock, 0, 0.5); for (const b of battleBuffs) animateBuff(b, S.clock); }
-  animateDog(dex.mesh, S.clock, S.mode === 'play' ? dex.move : 0, S.mode === 'battle' ? 0.2 : 0.7);
+  animateDog(dex.mesh, S.clock, S.mode === 'play' ? dex.move : dex.glitch ? 1.3 : 0, S.mode === 'battle' ? 0.2 : 0.7);
   if (S.mode !== 'play' && S.mode !== 'battle') dex.mesh.visible = true;
+  const pm = house.userData.porchMat;
+  pm.opacity += ((S.mode === 'play' && inPorch(dex.x, dex.z) ? 0.18 : 1) - pm.opacity) * Math.min(1, dt * 6);
   updateSky();
   updateCamera(dt);
   renderer.render(scene, camera);

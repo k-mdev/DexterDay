@@ -158,4 +158,12 @@ export const sfx = {
   heehaw: () => { tone(620, 0.3, 'sawtooth', 0.14, 900); tone(260, 0.5, 'sawtooth', 0.16, 170, 0.32); },
   oink: () => { tone(190, 0.12, 'sawtooth', 0.13, 130); tone(210, 0.14, 'sawtooth', 0.13, 120, 0.16); },
   yeet: () => tone(300, 0.7, 'sine', 0.12, 1800),
+  radarBark: () => { tone(420, 0.05, 'sawtooth', 0.012, 240); tone(400, 0.06, 'sawtooth', 0.012, 220, 0.08); },
+  cutin: () => { const a = ac(); if (a) noise(0.28, 0.09, a.currentTime, null, 900); tone(200, 0.25, 'sawtooth', 0.07, 1400); },
+  barkBig: () => { for (let i = 0; i < 3; i++) { tone(340 - i * 20, 0.13, 'sawtooth', 0.2, 120, i * 0.17); tone(170, 0.13, 'square', 0.1, 70, i * 0.17); } },
+  splat: () => { for (let i = 0; i < 7; i++) tone(240 + Math.random() * 300, 0.09, 'sine', 0.13, 70, i * 0.05); const a = ac(); if (a) noise(0.2, 0.05, a.currentTime + 0.3, null, 1500); },
+  whimper: () => { tone(980, 0.35, 'sine', 0.11, 620); tone(1050, 0.3, 'sine', 0.1, 700, 0.4); tone(900, 0.6, 'sine', 0.11, 420, 0.75); },
+  derp: () => { tone(260, 0.18, 'triangle', 0.15, 180); tone(180, 0.2, 'triangle', 0.15, 120, 0.2); tone(120, 0.5, 'triangle', 0.16, 60, 0.42); tone(700, 0.08, 'sine', 0.08, 1100, 0.95); },
+  chomp: () => { for (let i = 0; i < 3; i++) tone(160, 0.06, 'square', 0.14, 90, i * 0.12); },
+  swipe: () => { const a = ac(); if (a) noise(0.16, 0.1, a.currentTime, null, 2500); },
 };

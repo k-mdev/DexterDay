@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>DexterDay</title>
-<meta name="description" content="A day in the life of Dexter, a very good (and slightly confused) black lab.">
+<meta name="description" content="A day in the life of Dexter, a stank dog and slightly confused black lab.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦴</text></svg>">
 <link rel="stylesheet" href="css/style.css">
 <script type="importmap">
@@ -28,6 +28,7 @@
     <button id="btn-mute" title="Mute (M)">🔊</button>
     <button id="btn-help" title="Help (H)">?</button>
   </div>
+  <div id="radar-wrap"><canvas id="radar" width="136" height="136"></canvas><span>DEXDETECTOR</span></div>
   <div id="prompt" class="hidden"></div>
   <div id="toasts"></div>
 </div>
@@ -42,7 +43,6 @@
 
 <!-- Battle UI -->
 <div id="battle" class="hidden">
-  <div id="b-lines"></div>
   <div id="b-flash"></div>
   <div class="b-card enemy">
     <div class="b-name"><span id="be-name">Rival</span><span id="be-lvl">Lv1</span></div>
@@ -55,6 +55,8 @@
     <div class="b-sub"><span id="bp-hp-text">30/30</span><span id="bp-treats">🦴 0</span></div>
   </div>
   <div id="b-popups"></div>
+  <div id="b-cutin" class="hidden"><div class="ci-band"><div id="ci-face"></div><div id="ci-name"></div></div></div>
+  <div class="b-bars"></div>
   <div class="b-bottom">
     <div id="b-text"></div>
     <div id="b-menu" class="hidden">
@@ -62,8 +64,11 @@
       <button data-move="whine"><b>Whine</b><small>Guilt trip. Weakens them.</small></button>
       <button data-move="bark"><b>Bark</b><small>Loud and reliable.</small></button>
       <button data-move="duh"><b>Duh</b><small>??? Anything could happen.</small></button>
-      <button data-move="treat" class="alt"><b>Eat Treat</b><small>Restore confidence.</small></button>
-      <button data-move="run" class="alt"><b>Run</b><small>Tactical retreat.</small></button>
+      <div class="alt-row">
+        <button data-move="treat" class="alt"><b>Eat Treat</b><small>Restore confidence.</small></button>
+        <button data-move="bribe" class="alt"><b>Bribe</b><small>Sadly hand over a treat.</small></button>
+        <button data-move="run" class="alt"><b>Run</b><small>Tactical retreat.</small></button>
+      </div>
     </div>
   </div>
 </div>
@@ -72,7 +77,7 @@
 <div id="title" class="screen">
   <div class="panel">
     <h1>Dexter<span>Day</span></h1>
-    <p class="tag">One very good boy. One forest full of snacks.<br>Several dogs with no respect for property.</p>
+    <p class="tag">One stank dog. One forest full of snacks.<br>Several dogs with no respect for property.</p>
     <button id="btn-continue" class="big hidden">Continue</button>
     <button id="btn-new" class="big">New Game</button>
     <p class="keys">Move <kbd>WASD</kbd>/<kbd>Arrows</kbd> · Zoomies <kbd>Shift</kbd> · Use/Bark <kbd>E</kbd> · Eat treat <kbd>Q</kbd></p>
@@ -87,11 +92,12 @@
       <li>Roam the forest and grab treats. 🦴 🥓 🧀 🍗</li>
       <li>Carried treats can be <b>stolen</b>. Drop them in your <b>bowl</b> by the porch to stash them.</li>
       <li>Treats are also how Dexter <b>heals</b>: press <kbd>Q</kbd> to eat one. Eat it or stash it?</li>
-      <li>Rival dogs raid your bowl if you leave it unguarded. Tackle a thief to win the loot back.</li>
-      <li>Battles: <b>Slobber</b>, <b>Whine</b>, <b>Bark</b>, or <b>Duh</b>. Eat a carried treat to recover.</li>
+      <li>Rival dogs snatch a treat if they catch you, and raid your bowl if you leave it unguarded. Battles are your call: walk up to a rival and press <kbd>E</kbd> to challenge them and win the loot back.</li>
+      <li>Battles: <b>Slobber</b>, <b>Whine</b>, <b>Bark</b>, or <b>Duh</b>. Eat a carried treat to recover, or sadly <b>Bribe</b> your way out with one.</li>
       <li>Make <b>friends</b> down the street: the chickens fetch treats, Hank the donkey kicks rivals into orbit, and Hamlet the pig roots up snacks. They tag along for a while, then head home.</li>
-      <li>Dig at dirt mounds, chase the squirrel (use Zoomies!), cool off in the pond.</li>
-      <li>When it gets dark, climb the stairs to your <b>bed</b> on the balcony to end the day. Rivals can't climb stairs.</li>
+      <li>Dig at dirt mounds, chase the squirrel (use Zoomies!), cool off in the pond or your kiddie pool.</li>
+      <li>When it gets dark, head up the porch steps to your <b>bed</b> to end the day. Rivals can't get onto the porch.</li>
+      <li>The <b>DexDetector</b> pings rival dogs as its sweep passes them. Yellow blips are carrying your treats.</li>
     </ul>
     <button id="btn-help-close" class="big">Got it</button>
   </div>

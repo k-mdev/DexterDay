@@ -64,7 +64,7 @@ export function makeDog(o = {}) {
     box(head, 0.065, 0.075, 0.04, eyeM, s * 0.12, 0.145, 0.275);
     box(head, 0.03, 0.035, 0.04, 0x0a0a0a, s * 0.12, 0.14, 0.283);
     // brow, gives him the worried lab look
-    box(head, 0.13, 0.04, 0.05, c.color, s * 0.12, 0.215, 0.27).rotation.z = s * 0.25;
+    box(head, 0.13, 0.04, 0.05, c.color, s * 0.12, 0.225, 0.27).rotation.z = -s * 0.3;
   }
   if (c.mask) box(head, 0.46, 0.13, 0.05, 0x1a1a1a, 0, 0.15, 0.25);
   const ec = c.earColor ?? c.color;
@@ -191,8 +191,8 @@ export function makeDexter() {
 
 /* ---------- Serious Mode (battle only) ----------
  * When a fight starts everyone becomes an absurdly muscular, smooth, high-poly
- * biped with a menacing aura. Purely cosmetic. Faces +Z like the normal models. */
-export function makeBuffDog(look = {}, auraColor = 0xb04fe0) {
+ * biped. Purely cosmetic. Faces +Z like the normal models. */
+export function makeBuffDog(look = {}) {
   const c = { color: 0x1c1c20, chest: null, snoutColor: null, chin: null, eye: 0x6b3a12, ear: 'floppy', earColor: null, collar: null, tag: false, mask: false, fluffy: false, snout: 0.3, ...look };
   const g = new THREE.Group();
   const baseCol = new THREE.Color(c.color);
@@ -275,17 +275,7 @@ export function makeBuffDog(look = {}, auraColor = 0xb04fe0) {
   }
   const tail = cap(g, 0.07, 0.45, 0, 1.3, -0.42); tail.rotation.x = -0.9;
 
-  // aura
-  const auraM = new THREE.MeshBasicMaterial({ color: auraColor, transparent: true, opacity: 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide });
-  const aura = add(g, new THREE.SphereGeometry(1.7, 20, 14), auraM, 0, 1.5, 0, 1, 1.25, 1); aura.castShadow = false;
-  const flameM = new THREE.MeshBasicMaterial({ color: auraColor, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false });
-  const flames = [];
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2;
-    const f = add(g, new THREE.ConeGeometry(0.22, 1.6, 6), flameM, Math.cos(a) * 1.15, 1, Math.sin(a) * 1.15 - 0.1);
-    f.castShadow = false; flames.push(f);
-  }
-  g.userData = { head, chest, aura, flames, arms, buff: true, popY: 3.0, phase: Math.random() * 10 };
+  g.userData = { head, chest, arms, buff: true, popY: 3.0, phase: Math.random() * 10 };
   return g;
 }
 
@@ -293,8 +283,6 @@ export function animateBuff(m, t) {
   const u = m.userData, p = t + u.phase;
   const b = 1 + Math.sin(p * 2.4) * 0.025;
   u.chest.scale.set(1.3 * b, 0.85 * b, 0.8 * b);
-  u.aura.scale.set(1 + Math.sin(p * 5) * 0.05, 1.25 + Math.sin(p * 4) * 0.08, 1 + Math.sin(p * 5) * 0.05);
-  u.flames.forEach((f, i) => { f.position.y = 0.9 + ((p * 1.6 + i * 0.37) % 1) * 1.8; f.scale.y = 0.6 + Math.sin(p * 7 + i) * 0.3; });
   u.arms[1].e.rotation.z = 2.0 + Math.sin(p * 2.4) * 0.12; // slow, deliberate flexing
 }
 
@@ -312,13 +300,13 @@ export function makeDonkey() {
   return d;
 }
 
-export function makeChicken(color = 0xffffff) {
+export function makeChicken(color = 0xa8552a, headColor = 0xd9a868) {
   const g = new THREE.Group();
   const inner = new THREE.Group(); g.add(inner);
   box(inner, 0.3, 0.3, 0.42, color, 0, 0.36, 0);
   box(inner, 0.26, 0.2, 0.14, color, 0, 0.48, -0.24).rotation.x = -0.5; // tail feathers
   const head = new THREE.Group(); head.position.set(0, 0.52, 0.2); inner.add(head);
-  box(head, 0.18, 0.26, 0.18, color, 0, 0.1, 0);
+  box(head, 0.18, 0.26, 0.18, headColor, 0, 0.1, 0);
   box(head, 0.08, 0.06, 0.12, 0xf2a020, 0, 0.1, 0.14);
   box(head, 0.05, 0.1, 0.14, 0xd9342b, 0, 0.27, 0);
   box(head, 0.05, 0.08, 0.05, 0xd9342b, 0, 0.0, 0.11);
@@ -411,68 +399,133 @@ export function makeBush() {
 }
 
 /* ---------- House ---------- */
-// Body: x -5..5, z -21.5..-14.5. Balcony/porch: z -14.5..-11.5. Stairs: x 5..7, z -11.5..-5.5.
+// Modelled on the real one: cream siding, grey-green steep roof with three dormers,
+// a raised wrap-around porch with white railings, dark green door and shutters.
+// Body: x -5..5, z -21.5..-14.5. Porch deck: x -7.5..7.5, z -21.5..-11.5, raised 0.7.
+// Front steps: x -1.2..1.2, z -11.5..-9.7.
 export function makeHouse() {
   const g = new THREE.Group();
-  const siding = 0xe9dfc4, trim = 0xffffff, roofC = 0x8b3f33, wood = 0xa9825a;
-  box(g, 10, 6, 7, siding, 0, 3, -18);
-  // siding lines
-  for (let i = 1; i < 12; i++) box(g, 10.04, 0.03, 7.04, 0xd4c9ab, 0, i * 0.5, -18);
-  box(g, 10.3, 0.25, 7.3, trim, 0, 3, -18);
-  // gable roof
-  const tri = new THREE.Shape();
-  tri.moveTo(-5.7, 0); tri.lineTo(5.7, 0); tri.lineTo(0, 3); tri.closePath();
-  const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(tri, { depth: 8, bevelEnabled: false }), mat(roofC));
-  roof.position.set(0, 6, -22); roof.castShadow = true; g.add(roof);
-  box(g, 0.9, 2.2, 0.9, 0x9a5a4a, 3, 8, -19);
+  const siding = 0xeee3c2, trim = 0xffffff, roofC = 0x7f9186, green = 0x2e4a3a, found = 0xd8cfb8;
+  const D = 0.7; // deck height
+  box(g, 15, D, 10, found, 0, D / 2, -16.5);
+  box(g, 15.1, 0.06, 10.1, 0xcbc2ab, 0, D + 0.02, -16.5);
+  box(g, 10, 3.2, 7, siding, 0, D + 1.6, -18);
+  for (let i = 1; i < 8; i++) box(g, 10.04, 0.03, 7.04, 0xd9cfae, 0, D + i * 0.4, -18);
+
   // windows (shared material glows at night)
   const win = mat(0x9fd6ff, { emissive: 0xffc860, emissiveIntensity: 0 });
   g.userData.windowMat = win;
-  const frame = (x, y) => { box(g, 1.7, 1.7, 0.1, trim, x, y, -14.48); box(g, 1.4, 1.4, 0.14, win, x, y, -14.47); box(g, 0.08, 1.4, 0.16, trim, x, y, -14.47); box(g, 1.4, 0.08, 0.16, trim, x, y, -14.47); };
-  frame(-3, 1.6); frame(3, 1.6); frame(-3, 4.6); frame(3.2, 4.6);
-  // doors
-  box(g, 1.5, 2.4, 0.12, 0x3f6f8f, 0, 1.2, -14.47); box(g, 0.12, 0.12, 0.1, 0xf2c230, 0.5, 1.2, -14.38);
-  box(g, 1.3, 2.2, 0.12, 0x3f6f8f, 0.4, 4.2, -14.47);
-  // side windows
-  for (const x of [-5.02, 5.02]) for (const y of [1.6, 4.6]) box(g, 0.12, 1.3, 1.3, win, x, y, -18.5);
-  // balcony floor + landing
-  box(g, 12, 0.2, 3, wood, 1, 2.9, -13);
-  box(g, 10, 0.12, 3, 0xb8b2a6, 0, 0.06, -13); // porch slab
-  for (const x of [-4.85, 0, 4.85, 6.85]) box(g, 0.25, 2.8, 0.25, trim, x, 1.4, -11.65);
-  // railing: front (x -5..5) and landing outer sides
-  box(g, 10, 0.1, 0.12, trim, 0, 3.9, -11.6);
-  for (let x = -4.9; x <= 5; x += 0.45) box(g, 0.09, 0.9, 0.09, trim, x, 3.45, -11.6);
-  box(g, 0.12, 0.1, 3, trim, -4.95, 3.9, -13);
-  for (let z = -14.3; z <= -11.7; z += 0.45) box(g, 0.09, 0.9, 0.09, trim, -4.95, 3.45, z);
-  box(g, 0.12, 0.1, 3, trim, 6.95, 3.9, -13);
-  for (let z = -14.3; z <= -11.7; z += 0.45) box(g, 0.09, 0.9, 0.09, trim, 6.95, 3.45, z);
-  // stairs
-  const steps = 10;
-  for (let i = 0; i < steps; i++) {
-    const h = 3 * (i + 1) / steps;
-    box(g, 2, 0.16, 0.62, wood, 6, h - 0.1, -5.5 - (i + 0.5) * 0.6);
+  const frontZ = -14.47;
+  const windowAt = (x, y, w = 1.2, h = 1.7, shutters = true) => {
+    box(g, w + 0.24, h + 0.24, 0.1, trim, x, y, frontZ);
+    box(g, w, h, 0.14, win, x, y, frontZ + 0.01);
+    box(g, 0.07, h, 0.16, trim, x, y, frontZ + 0.01); box(g, w, 0.07, 0.16, trim, x, y, frontZ + 0.01);
+    if (shutters) for (const s of [-1, 1]) box(g, 0.42, h + 0.1, 0.1, green, x + s * (w / 2 + 0.36), y, frontZ);
+  };
+  windowAt(-3.4, D + 1.75); windowAt(3.4, D + 1.75); windowAt(1.75, D + 1.75, 0.8, 1.9, false);
+  box(g, 1.5, 2.5, 0.1, trim, 0, D + 1.25, frontZ); box(g, 1.25, 2.3, 0.14, green, 0, D + 1.17, frontZ + 0.01);
+  box(g, 0.1, 0.1, 0.1, 0xf2c230, 0.42, D + 1.15, frontZ + 0.1);
+  for (const x of [-5.02, 5.02]) box(g, 0.12, 1.5, 1.2, win, x, D + 1.75, -18.5);
+
+  // porch roof (fades when Dexter is underneath so you can still see him)
+  const porchM = mat(roofC, { transparent: true });
+  g.userData.porchMat = porchM;
+  const pf = box(g, 16, 0.16, 3.6, porchM, 0, 3.72, -13.1); pf.rotation.x = 0.13;
+  for (const s of [-1, 1]) { const ps = box(g, 3.1, 0.16, 7.2, porchM, s * 6.35, 3.72, -18.1); ps.rotation.z = -s * 0.13; }
+  box(g, 15.4, 0.2, 0.2, trim, 0, 3.45, -11.62);
+  // posts
+  for (const x of [-7.35, -3.9, -1.35, 1.35, 3.9, 7.35]) box(g, 0.22, 2.85, 0.22, trim, x, D + 1.42, -11.65);
+  for (const s of [-1, 1]) for (const z of [-15, -18.3, -21.35]) box(g, 0.22, 2.85, 0.22, trim, s * 7.35, D + 1.42, z);
+  // railings
+  const railX = (x1, x2, z) => {
+    box(g, x2 - x1, 0.09, 0.1, trim, (x1 + x2) / 2, D + 0.95, z); box(g, x2 - x1, 0.07, 0.08, trim, (x1 + x2) / 2, D + 0.15, z);
+    for (let x = x1 + 0.2; x < x2; x += 0.34) box(g, 0.07, 0.8, 0.07, trim, x, D + 0.55, z);
+  };
+  const railZ = (z1, z2, x) => {
+    box(g, 0.1, 0.09, z2 - z1, trim, x, D + 0.95, (z1 + z2) / 2); box(g, 0.08, 0.07, z2 - z1, trim, x, D + 0.15, (z1 + z2) / 2);
+    for (let z = z1 + 0.2; z < z2; z += 0.34) box(g, 0.07, 0.8, 0.07, trim, x, D + 0.55, z);
+  };
+  railX(-7.35, -1.35, -11.6); railX(1.35, 7.35, -11.6); railZ(-21.4, -11.6, -7.4); railZ(-21.4, -11.6, 7.4);
+  // front steps + handrails
+  for (let i = 0; i < 4; i++) box(g, 2.4, D * (4 - i) / 4.6, 0.46, 0xdcd6c8, 0, (D * (4 - i) / 4.6) / 2, -11.27 - -i * 0.45);
+  for (const s of [-1, 1]) {
+    const r = box(g, 0.09, 0.09, 2.1, trim, s * 1.28, D + 0.5, -10.6); r.rotation.x = 0.36;
+    box(g, 0.12, 1.0, 0.12, trim, s * 1.28, 0.5, -9.75);
   }
-  for (const x of [5.05, 6.95]) {
-    const rail = box(g, 0.1, 0.1, 6.75, trim, x, 2.4, -8.5);
-    rail.rotation.x = Math.atan2(3, 6);
-    for (let i = 0; i <= 4; i++) box(g, 0.09, 0.95 + (i === 0 ? 0 : 0), 0.09, trim, x, 0.45 + i * 0.75, -5.5 - i * 1.5);
+
+  // main roof: steep hip with a flatter cap, three dormers on the front
+  const hipGeo = new THREE.CylinderGeometry(0.7071 * 0.5, 0.7071, 3.2, 4); hipGeo.rotateY(Math.PI / 4);
+  const hip = new THREE.Mesh(hipGeo, mat(roofC)); hip.scale.set(10.9, 1, 7.9); hip.position.set(0, 3.9 + 1.6, -18); hip.castShadow = true; g.add(hip);
+  const capGeo = new THREE.ConeGeometry(0.7071 * 0.5, 0.9, 4); capGeo.rotateY(Math.PI / 4);
+  const capM = new THREE.Mesh(capGeo, mat(0x74867b)); capM.scale.set(10.9, 1, 7.9); capM.position.set(0, 7.1 + 0.45, -18); capM.castShadow = true; g.add(capM);
+  for (const x of [-3, 0, 3]) {
+    const w = x === 0 ? 1.9 : 1.4;
+    box(g, w, 1.7, 2, siding, x, 5.05, -15.3);
+    box(g, w - 0.35, 1.2, 0.1, trim, x, 5.1, -14.28); box(g, w - 0.55, 1.0, 0.12, win, x, 5.1, -14.27);
+    box(g, 0.06, 1.0, 0.14, trim, x, 5.1, -14.27); box(g, w - 0.55, 0.06, 0.14, trim, x, 5.1, -14.27);
+    const dg = new THREE.ConeGeometry(0.7071, 0.7, 4); dg.rotateY(Math.PI / 4);
+    const dr = new THREE.Mesh(dg, mat(roofC)); dr.scale.set(w + 0.4, 1, 2.3); dr.position.set(x, 6.25, -15.3); dr.castShadow = true; g.add(dr);
   }
-  // Dexter's bed (blue, like the couch)
+
+  // Dexter's bed (blue, like the couch) on the porch
   const bed = new THREE.Group();
   box(bed, 1.7, 0.22, 1.3, 0x3d67b8, 0, 0.11, 0);
   box(bed, 1.7, 0.4, 0.2, 0x335aa6, 0, 0.25, -0.6);
   box(bed, 0.2, 0.4, 1.3, 0x335aa6, -0.8, 0.25, 0); box(bed, 0.2, 0.4, 1.3, 0x335aa6, 0.8, 0.25, 0);
   box(bed, 1.2, 0.08, 0.8, 0x6f95dd, 0, 0.25, 0.05);
-  bed.position.set(-3, 3, -13.2);
+  bed.position.set(-4.6, D + 0.05, -13.4);
   g.add(bed);
-  // potted monsteras on the porch
-  for (const x of [-4, 4]) {
-    shape(g, new THREE.CylinderGeometry(0.4, 0.3, 0.5, 8), 0xc8693f, x, 0.37, -12.3);
-    for (let i = 0; i < 4; i++) {
-      const leaf = box(g, 0.5, 0.04, 0.6, 0x2f7d3f, x + Math.cos(i * 1.6) * 0.3, 0.95 + i * 0.12, -12.3 + Math.sin(i * 1.6) * 0.3);
-      leaf.rotation.set(0.4, i * 1.6, 0.3);
+  // potted monsteras
+  for (const [x, z] of [[-2.2, -13.9], [5.6, -13.8]]) {
+    shape(g, new THREE.CylinderGeometry(0.4, 0.3, 0.5, 8), x < 0 ? 0x6b4a3a : 0xc8693f, x, D + 0.3, z);
+    for (let i = 0; i < 5; i++) {
+      const leaf = box(g, 0.55, 0.04, 0.65, 0x2f7d3f, x + Math.cos(i * 1.4) * 0.35, D + 0.85 + i * 0.13, z + Math.sin(i * 1.4) * 0.3);
+      leaf.rotation.set(0.4, i * 1.4, 0.3);
     }
   }
+  return g;
+}
+
+/* ---------- Garage, driveway and yard bits ---------- */
+// Garage body: x 19..26, z -9..2 (doors face west, toward the driveway slab).
+export function makeYard() {
+  const g = new THREE.Group();
+  const stucco = 0xd9c7a3, white = 0xf4f4f0;
+  const slab = box(g, 10.6, 0.08, 11.6, 0xd6d3cc, 13.9, 0.04, -3.5); slab.castShadow = false;
+  for (let i = 0; i < 3; i++) { const j = box(g, 10.6, 0.085, 0.05, 0xb9b6ae, 13.9, 0.04, -6.4 + i * 2.9); j.castShadow = false; }
+  for (let i = 0; i < 6; i++) { const d = box(g, 2.6 + Math.sin(i * 1.7) * 0.3, 0.04, 2.1, 0xb9a98c, 15.5 + Math.sin(i) * 0.3, 0.02, 3.2 + i * 2); d.castShadow = false; }
+  box(g, 7, 3.4, 11, stucco, 22.5, 1.7, -3.5);
+  const rg = new THREE.ConeGeometry(0.7071, 1.7, 4); rg.rotateY(Math.PI / 4);
+  const roof = new THREE.Mesh(rg, mat(0x6f7f76)); roof.scale.set(8, 1, 12); roof.position.set(22.5, 3.4 + 0.85, -3.5); roof.castShadow = true; g.add(roof);
+  for (const z of [-6.3, -0.8]) {
+    box(g, 0.12, 2.7, 4.3, white, 18.96, 1.35, z);
+    for (let i = 1; i < 4; i++) box(g, 0.14, 0.04, 4.3, 0xd8d8d2, 18.95, i * 0.68, z);
+  }
+  box(g, 0.2, 3.4, 0.7, stucco, 18.95, 1.7, -3.55);
+  // side door + concrete pad
+  box(g, 1, 2.2, 0.1, white, 20.6, 1.1, 2.03); box(g, 0.5, 1.4, 0.1, mat(0x9fd6ff), 22.6, 1.9, 2.03); box(g, 2.2, 0.1, 1.6, 0xd6d3cc, 20.6, 0.05, 2.8);
+  // climbing bushes with pink flowers
+  for (const z of [-3.5, 1.6]) {
+    shape(g, new THREE.IcosahedronGeometry(0.9, 0), 0x3f8a4e, 18.7, 2.2, z); shape(g, new THREE.IcosahedronGeometry(0.7, 0), 0x4c9a4a, 18.7, 1.1, z + 0.2);
+    box(g, 0.14, 0.14, 0.14, 0xe0457a, 18.2, 2.5, z + 0.3); box(g, 0.14, 0.14, 0.14, 0xe0457a, 18.3, 1.9, z - 0.4);
+  }
+  // blue recycling bin
+  const bin = new THREE.Group();
+  const bg = new THREE.CylinderGeometry(0.7071 * 0.95, 0.7071 * 0.75, 1.25, 4); bg.rotateY(Math.PI / 4);
+  const body = new THREE.Mesh(bg, mat(0x1f5fd0)); body.position.y = 0.78; body.castShadow = true; bin.add(body);
+  box(bin, 1.02, 0.12, 1.05, 0x184fb3, 0, 1.46, 0.02); box(bin, 0.5, 0.08, 0.1, 0x184fb3, 0, 1.5, -0.52);
+  box(bin, 0.3, 0.3, 0.02, white, 0, 1.0, 0.46);
+  for (const s of [-1, 1]) { const w = shape(bin, new THREE.CylinderGeometry(0.17, 0.17, 0.1, 10), 0x1a1a1a, s * 0.42, 0.17, -0.32); w.rotation.z = Math.PI / 2; }
+  bin.position.set(9.3, 0.08, -8.2); bin.rotation.y = 0.3; g.add(bin);
+  // Dexter's kiddie pool on the edge of the driveway
+  const pool = shape(g, new THREE.CylinderGeometry(1.75, 1.65, 0.38, 18), 0x18a7a7, 10.6, 0.27, 0.4);
+  pool.castShadow = false;
+  const water = new THREE.Mesh(new THREE.CircleGeometry(1.6, 18), mat(0x7fe3e6, { roughness: 0.15, transparent: true, opacity: 0.9 }));
+  water.rotation.x = -Math.PI / 2; water.position.set(10.6, 0.475, 0.4); g.add(water);
+  // green utility box, post and bird bath on the lawn
+  box(g, 1.7, 1.1, 1.2, 0x5d6b4a, -10.5, 0.55, -8.6); box(g, 1.75, 0.08, 1.25, 0x4e5a3e, -10.5, 1.12, -8.6);
+  shape(g, new THREE.CylinderGeometry(0.18, 0.18, 0.9, 8), 0x8a9478, -12.4, 0.45, -8);
+  shape(g, new THREE.CylinderGeometry(0.12, 0.2, 0.7, 8), 0xb5654a, -13.4, 0.35, -7.2); shape(g, new THREE.CylinderGeometry(0.5, 0.3, 0.14, 10), 0xb5654a, -13.4, 0.75, -7.2);
   return g;
 }
 
