@@ -1,0 +1,43 @@
+# DexterDay 🦴
+
+A tiny low-poly 3D browser game about Dexter, a very good (and slightly confused) black lab who lives in a two-story house in the forest.
+
+Collect treats, stash them in your bowl, and defend them from the neighbourhood dogs in Pokémon-style battles where everyone abruptly becomes extremely muscular.
+
+## Play
+
+Hosted with GitHub Pages — no build step. To run locally:
+
+```bash
+python -m http.server 8791
+```
+
+then open <http://localhost:8791>. (It must be served over HTTP; opening `index.html` from disk won't load the ES modules.)
+
+## Controls
+
+| Action | Keyboard | Touch |
+| --- | --- | --- |
+| Move | WASD / arrows | left stick |
+| Zoomies (sprint) | Shift | ⚡ |
+| Use / stash / dig / sleep (or just bark) | E or Space | 🐾 |
+| Eat a carried treat to heal | Q | 🍖 |
+| Mute / help | M / H | buttons |
+
+## How it works
+
+- **Treats** spawn around the clearing. Carried treats can be stolen; treats stashed in the bowl by the porch are safe-ish.
+- **Treats are also health.** Eating one restores confidence, so every treat is a choice: eat it or bank it.
+- **Rivals** (Taco, Sir Snorts, Biscuit, Fifi, Blizzard and Bandit the raccoon) chase you if you're carrying, or raid the bowl if you're not home. Catch a raider to win the loot back.
+- **Battles**: Slobber (ruins their aim), Whine (guilt lowers their attack), Bark (reliable damage), Duh (anything could happen).
+- **Friends down the street** tag along for 30 seconds: the chickens fetch nearby treats, Hank the donkey punts rivals into the forest, Hamlet the pig roots up snacks. Each also helps at the start of a battle.
+- **Extras**: dig spots, a squirrel worth chasing, a pond that recharges zoomies, XP and levels, a day/night cycle, and a bed on the balcony to end the day (rivals can't climb stairs). Progress saves at the end of each day.
+
+## Tech
+
+Plain HTML/CSS/ES modules with [three.js](https://threejs.org) from a CDN. All models are built in code and all music, ambience and sound effects are synthesised with WebAudio, so there are no asset files.
+
+- `js/main.js` — world, game loop, rivals, friends, day flow
+- `js/battle.js` — turn-based battle system
+- `js/models.js` — every model, including Serious Mode
+- `js/sfx.js` — sound effects, music sequencer, ambience

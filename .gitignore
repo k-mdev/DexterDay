@@ -1,0 +1,5 @@
+# personal reference photos stay local
+*.jpg
+*.jpeg
+*.png
+.claude/

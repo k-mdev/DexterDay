@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>DexterDay</title>
+<meta name="description" content="A day in the life of Dexter, a very good (and slightly confused) black lab.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦴</text></svg>">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-left">
+    <div class="pill"><span id="hud-day">Day 1</span> · <span id="hud-clock">7:00 AM</span></div>
+    <div class="pill">🦴 Carrying <b id="hud-carried">0</b> &nbsp; 🥣 Stash <b id="hud-stash">0</b></div>
+    <div class="bar-row"><span>Confidence</span><div class="bar"><div id="hud-hp" class="fill hp"></div></div><span id="hud-hp-text"></span></div>
+    <div class="bar-row"><span>Zoomies</span><div class="bar"><div id="hud-stam" class="fill stam"></div></div></div>
+    <div class="bar-row"><span id="hud-lvl">Lv 1</span><div class="bar"><div id="hud-xp" class="fill xp"></div></div></div>
+    <div class="pill hidden" id="hud-friend"></div>
+  </div>
+  <div class="hud-right">
+    <button id="btn-mute" title="Mute (M)">🔊</button>
+    <button id="btn-help" title="Help (H)">?</button>
+  </div>
+  <div id="prompt" class="hidden"></div>
+  <div id="toasts"></div>
+</div>
+
+<!-- Touch controls -->
+<div id="touch" class="hidden">
+  <div id="stick"><div id="stick-knob"></div></div>
+  <button id="t-zoom">⚡</button>
+  <button id="t-eat">🍖</button>
+  <button id="t-act">🐾</button>
+</div>
+
+<!-- Battle UI -->
+<div id="battle" class="hidden">
+  <div id="b-lines"></div>
+  <div id="b-flash"></div>
+  <div class="b-card enemy">
+    <div class="b-name"><span id="be-name">Rival</span><span id="be-lvl">Lv1</span></div>
+    <div class="bar"><div id="be-hp" class="fill hp"></div></div>
+    <div class="b-status" id="be-status"></div>
+  </div>
+  <div class="b-card player">
+    <div class="b-name"><span>Dexter</span><span id="bp-lvl">Lv1</span></div>
+    <div class="bar"><div id="bp-hp" class="fill hp"></div></div>
+    <div class="b-sub"><span id="bp-hp-text">30/30</span><span id="bp-treats">🦴 0</span></div>
+  </div>
+  <div id="b-popups"></div>
+  <div class="b-bottom">
+    <div id="b-text"></div>
+    <div id="b-menu" class="hidden">
+      <button data-move="slobber"><b>Slobber</b><small>Gross. Ruins their aim.</small></button>
+      <button data-move="whine"><b>Whine</b><small>Guilt trip. Weakens them.</small></button>
+      <button data-move="bark"><b>Bark</b><small>Loud and reliable.</small></button>
+      <button data-move="duh"><b>Duh</b><small>??? Anything could happen.</small></button>
+      <button data-move="treat" class="alt"><b>Eat Treat</b><small>Restore confidence.</small></button>
+      <button data-move="run" class="alt"><b>Run</b><small>Tactical retreat.</small></button>
+    </div>
+  </div>
+</div>
+
+<!-- Screens -->
+<div id="title" class="screen">
+  <div class="panel">
+    <h1>Dexter<span>Day</span></h1>
+    <p class="tag">One very good boy. One forest full of snacks.<br>Several dogs with no respect for property.</p>
+    <button id="btn-continue" class="big hidden">Continue</button>
+    <button id="btn-new" class="big">New Game</button>
+    <p class="keys">Move <kbd>WASD</kbd>/<kbd>Arrows</kbd> · Zoomies <kbd>Shift</kbd> · Use/Bark <kbd>E</kbd> · Eat treat <kbd>Q</kbd></p>
+    <p class="best" id="best"></p>
+  </div>
+</div>
+
+<div id="help" class="screen hidden">
+  <div class="panel">
+    <h2>How to be Dexter</h2>
+    <ul>
+      <li>Roam the forest and grab treats. 🦴 🥓 🧀 🍗</li>
+      <li>Carried treats can be <b>stolen</b>. Drop them in your <b>bowl</b> by the porch to stash them.</li>
+      <li>Treats are also how Dexter <b>heals</b>: press <kbd>Q</kbd> to eat one. Eat it or stash it?</li>
+      <li>Rival dogs raid your bowl if you leave it unguarded. Tackle a thief to win the loot back.</li>
+      <li>Battles: <b>Slobber</b>, <b>Whine</b>, <b>Bark</b>, or <b>Duh</b>. Eat a carried treat to recover.</li>
+      <li>Make <b>friends</b> down the street: the chickens fetch treats, Hank the donkey kicks rivals into orbit, and Hamlet the pig roots up snacks. They tag along for a while, then head home.</li>
+      <li>Dig at dirt mounds, chase the squirrel (use Zoomies!), cool off in the pond.</li>
+      <li>When it gets dark, climb the stairs to your <b>bed</b> on the balcony to end the day. Rivals can't climb stairs.</li>
+    </ul>
+    <button id="btn-help-close" class="big">Got it</button>
+  </div>
+</div>
+
+<div id="summary" class="screen hidden">
+  <div class="panel">
+    <h2 id="sum-title">Day 1 complete</h2>
+    <div id="sum-body"></div>
+    <button id="btn-next" class="big">Next Day</button>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
