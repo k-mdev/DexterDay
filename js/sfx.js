@@ -253,6 +253,8 @@ export const sfx = {
   heehaw: () => { tone(620, 0.3, 'sawtooth', 0.14, 900); tone(260, 0.5, 'sawtooth', 0.16, 170, 0.32); },
   oink: () => { tone(190, 0.12, 'sawtooth', 0.13, 130); tone(210, 0.14, 'sawtooth', 0.13, 120, 0.16); },
   yeet: () => tone(300, 0.7, 'sine', 0.12, 1800),
+  spit: () => tone(520 + Math.random() * 160, 0.05, 'sine', 0.05, 220),
+  squeak: () => { tone(1500, 0.06, 'square', 0.05, 2100); tone(1900, 0.06, 'square', 0.04, 1400, 0.06); },
   radarBark: () => {
     if (playClip(clips.bark, clips.barkVolume, 0.08)) return;
     woof(0.022, 0.85 + Math.random() * 0.3); // a tiny, far-away bark

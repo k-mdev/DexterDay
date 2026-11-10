@@ -6,6 +6,7 @@ import {
 } from './models.js';
 import { sfx } from './sfx.js';
 import { runBattle, RIVALS } from './battle.js';
+import { createDday } from './dday.js';
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -232,7 +233,7 @@ function randomSpot(minR = 4, maxR = 32) {
 /* ---------- State ---------- */
 const S = {
   mode: 'title', day: 1, time: 7, carried: 0, stash: 0, level: 1, xp: 0, hp: 30, maxHp: 30, atk: 6,
-  stamina: 100, grace: 0, woozy: 0, best: 0, today: null, nightWarned: false,
+  stamina: 100, grace: 0, woozy: 0, toadLicks: 0, best: 0, today: null, nightWarned: false,
 };
 const dex = { glitch: false, barkT: 0, mesh: makeDexter(), x: 0, y: 0, z: -5, vy: 0, face: 0, move: 0, dig: 0, digSpot: null, wet: false };
 dex.mesh.scale.setScalar(1.45);
@@ -348,8 +349,11 @@ function updateToads(dt) {
     if (t.cd <= 0 && S.woozy <= 0 && dex.y < 0.4 && near(p.x, p.z, 0.95)) {
       t.cd = 8; S.woozy = 4.5;
       S.hp = Math.max(1, S.hp - 5);
-      sfx.derp(); toast('Dexter licked a cane toad. Everything is wobbly. Do not lick the toads.');
+      S.toadLicks++;
       updateHud();
+      // Easter egg: every second lick sends him somewhere else entirely
+      if (S.toadLicks % 2 === 0) { sfx.derp(); startDday('play'); return; }
+      sfx.derp(); toast('Dexter licked a cane toad. Everything is wobbly. Do not lick the toads.');
     }
   }
 }
@@ -680,7 +684,10 @@ stickEl.addEventListener('pointerdown', (e) => { stick.id = e.pointerId; stickEl
 stickEl.addEventListener('pointermove', (e) => { if (e.pointerId === stick.id) stickMove(e); });
 const stickEnd = (e) => { if (e.pointerId !== stick.id) return; stick.id = null; stick.x = stick.y = 0; knob.style.left = '40px'; knob.style.top = '40px'; };
 stickEl.addEventListener('pointerup', stickEnd); stickEl.addEventListener('pointercancel', stickEnd);
-$('t-act').addEventListener('pointerdown', () => interact());
+$('t-act').addEventListener('pointerdown', () => { touchFire = true; interact(); });
+$('t-act').addEventListener('pointerup', () => { touchFire = false; });
+$('t-act').addEventListener('pointercancel', () => { touchFire = false; });
+$('btn-dday').onclick = () => startDday('title');
 $('t-eat').addEventListener('pointerdown', () => snack());
 $('t-zoom').addEventListener('pointerdown', () => { touchZoom = true; });
 $('t-zoom').addEventListener('pointerup', () => { touchZoom = false; });
@@ -813,6 +820,46 @@ function pushOutOfHouse(p) {
     const dx = p.x - t.x, dz = p.z - t.z, d = Math.hypot(dx, dz), r = t.r + 0.35;
     if (d < r && d > 0.001) { p.x = t.x + (dx / d) * r; p.z = t.z + (dz / d) * r; }
   }
+}
+
+/* ---------- D-Day daydream (easter egg) ---------- */
+const DDAY_KEY = 'dexterday-dday';
+let touchFire = false, ddayReturn = 'play';
+const dday = createDday({
+  keys, stick,
+  fireHeld: () => keys.has('Space') || keys.has('KeyE') || keys.has('KeyF') || touchFire,
+  onEnd: endDday,
+});
+function ddayUnlocked() { try { return localStorage.getItem(DDAY_KEY) === '1'; } catch { return false; } }
+function startDday(from) {
+  ddayReturn = from;
+  S.mode = 'dday';
+  keys.clear(); touchFire = false;
+  for (const id of ['hud', 'title', 'prompt', 'help']) $(id).classList.add('hidden');
+  $('dday').classList.remove('hidden');
+  $('fade').classList.add('flash'); setTimeout(() => $('fade').classList.remove('flash'), 900);
+  if (isTouch) $('touch').classList.remove('hidden');
+  sfx.unlock(); sfx.music('battle'); sfx.ambient('none');
+  dday.start();
+}
+function endDday() {
+  const first = !ddayUnlocked();
+  try { localStorage.setItem(DDAY_KEY, '1'); } catch { /* private mode */ }
+  $('dday').classList.add('hidden');
+  $('fade').classList.add('flash'); setTimeout(() => $('fade').classList.remove('flash'), 900);
+  $('btn-dday').classList.remove('hidden');
+  touchFire = false; keys.clear();
+  if (ddayReturn === 'title') {
+    S.mode = 'title'; $('title').classList.remove('hidden'); $('touch').classList.add('hidden');
+    sfx.music('day'); sfx.ambient('day');
+    return;
+  }
+  S.mode = 'play'; S.woozy = 0; S.grace = 2;
+  $('hud').classList.remove('hidden');
+  sfx.music(S.time >= 19.5 ? 'night' : 'day'); sfx.ambient(S.time >= 19.5 ? 'night' : 'day');
+  if (first) { S.carried += 6; sfx.golden(); toast('Dexter snaps out of it, somehow holding a golden bone. D-Day is now on the title screen.'); }
+  else toast('Dexter snaps out of it. He should really stop licking toads.');
+  updateHud();
 }
 
 /* ---------- Theft cutscene ----------
@@ -1043,6 +1090,7 @@ function updateCamera(dt) {
       battleCam.shake *= Math.pow(0.02, dt);
     }
   }
+  else if (S.mode === 'dday') dday.camera(camWant, lookWant);
   else if (cut) {
     const p = cut.e.mesh.position;
     camWant.set(p.x + 2.4 - cut.t * 0.3, 2.3, p.z + 4.8 - cut.t * 0.25); lookWant.set(p.x, 0.7, p.z); // slow push-in on the thief
@@ -1071,6 +1119,7 @@ function frame(now) {
 function tick(dt) {
   S.clock += dt;
   if (S.mode === 'play') updatePlay(dt);
+  else if (S.mode === 'dday') dday.update(dt);
   else if (S.mode === 'cutscene') updateCutscene(dt);
   if (S.mode === 'title') { dex.mesh.position.set(0, 0, -5); dex.mesh.rotation.y = Math.sin(S.clock * 0.5) * 0.5; }
   if (S.mode === 'battle') { for (const r of rivals) animateDog(r.mesh, S.clock, 0, 0.5); for (const b of battleBuffs) animateBuff(b, S.clock); }
@@ -1089,7 +1138,7 @@ function tick(dt) {
   pm.opacity += ((S.mode === 'play' && inPorch(dex.x, dex.z) ? 0.18 : 1) - pm.opacity) * Math.min(1, dt * 6);
   updateSky();
   updateCamera(dt);
-  renderer.render(inArena ? battleScene : scene, camera);
+  renderer.render(S.mode === 'dday' ? dday.scene : inArena ? battleScene : scene, camera);
 }
 
 /* ---------- Boot ---------- */
@@ -1100,6 +1149,7 @@ if (sv && sv.day > 1) {
   S.best = sv.best || 0;
   $('best').textContent = `Biggest stash: ${S.best} 🦴 · ${rankFor(S.best)}`;
 }
-window.__dexter = { S, dex, rivals, treats, toads, keys, FRIENDS, startBattle, spawnRival, endDay, tick, startDay };
+if (ddayUnlocked()) $('btn-dday').classList.remove('hidden');
+window.__dexter = { dday, startDday, S, dex, rivals, treats, toads, keys, FRIENDS, startBattle, spawnRival, endDay, tick, startDay };
 buildNature(1); // handy for debugging
 requestAnimationFrame(frame);

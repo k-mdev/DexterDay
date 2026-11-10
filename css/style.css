@@ -138,3 +138,11 @@ h2 { margin: 0 0 12px; font-size: 30px; }
 @keyframes cineIn { from { height: 0; } }
 
 #sum-body .temp { font-size: 12px; opacity: .55; margin-top: 4px; }
+
+#dday { position: fixed; inset: 0; pointer-events: none; }
+#dday-hud { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(30, 36, 24, .82); color: #e9f0d8; border: 2px solid #8a9a5b; border-radius: 10px; padding: 7px 16px; font-size: clamp(12px, 2vw, 16px); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#dday-cap { position: absolute; left: 50%; bottom: 7%; transform: translateX(-50%); max-width: 92vw; background: rgba(0, 0, 0, .6); color: #f4f1e8; border-radius: 8px; padding: 8px 16px; font-size: clamp(13px, 2.2vw, 19px); font-weight: 700; text-align: center; }
+#fade { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+#fade.flash { animation: fadeFlash .9s ease-out; }
+@keyframes fadeFlash { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+.big.alt { background: #b9c79a; } .big.alt:hover { background: #a6b785; }

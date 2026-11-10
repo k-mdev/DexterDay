@@ -34,6 +34,7 @@ then open <http://localhost:8791>. (It must be served over HTTP; opening `index.
 - **Friends down the street** tag along for 30 seconds: the chickens fetch nearby treats, Hank the donkey punts rivals into the forest, Hamlet the pig roots up snacks. Each also helps at the start of a battle.
 - **Seasons**: every two days the season turns. Plants are regrown from a seed with new positions and colours; buildings stay the same. It's Florida, so there is no real winter.
 - **Cane toads** hop around the yard. Licking one costs a little confidence and makes Dexter's steering wobbly for a few seconds.
+- **Easter egg**: there is a hidden daydream level. It has something to do with the toads.
 - **Extras**: dig spots, a squirrel worth chasing, a lake and kiddie pool that recharge zoomies, XP and levels, a day/night cycle, and a bed on the porch to end the day (rivals can't get onto the porch). Progress saves at the end of each day.
 
 ## Tech
@@ -43,5 +44,6 @@ Plain HTML/CSS/ES modules with [three.js](https://threejs.org) from a CDN. All m
 - `js/main.js` — world, game loop, rivals, friends, day flow
 - `js/battle.js` — turn-based battle system
 - `js/cutin.js` — 3D isometric portrait for the attack banners
+- `js/dday.js` — the hidden daydream level
 - `js/models.js` — every model, including Serious Mode
 - `js/sfx.js` — sound effects, music sequencer, ambience
