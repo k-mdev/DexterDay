@@ -12,6 +12,7 @@ function ac() {
     musicBus = ctx.createGain(); musicBus.gain.value = 0.55; musicBus.connect(master);
     ambBus = ctx.createGain(); ambBus.gain.value = 1; ambBus.connect(master);
     startWind();
+    loadClips();
     setInterval(musicTick, 40);
     setInterval(ambientTick, 350);
   }
@@ -46,6 +47,37 @@ function noise(dur, vol, at, bus, hp = 6000) {
   g.gain.setValueAtTime(vol, at); g.gain.exponentialRampToValueAtTime(0.001, at + dur);
   s.connect(f).connect(g).connect(bus || master);
   s.start(at, Math.random()); s.stop(at + dur + 0.02);
+}
+
+/* ---------- DexDetector clips ----------
+ * Optional recorded audio. File names are listed in audio/dexdetector/clips.json;
+ * anything not listed there falls back to the synthesised version. */
+const CLIP_DIR = 'audio/dexdetector/';
+const clips = { bark: [], sweep: [], barkVolume: 0.12, sweepVolume: 0.1 };
+async function loadClips() {
+  try {
+    const cfg = await (await fetch(CLIP_DIR + 'clips.json')).json();
+    clips.barkVolume = cfg.barkVolume ?? clips.barkVolume;
+    clips.sweepVolume = cfg.sweepVolume ?? clips.sweepVolume;
+    for (const kind of ['bark', 'sweep']) {
+      for (const name of cfg[kind] || []) {
+        try {
+          const data = await (await fetch(CLIP_DIR + encodeURIComponent(name))).arrayBuffer();
+          clips[kind].push(await ctx.decodeAudioData(data));
+        } catch (e) { console.warn('DexDetector clip failed to load:', name, e); }
+      }
+    }
+  } catch { /* no clips configured: synth only */ }
+}
+function playClip(list, vol, detune = 0) {
+  if (!ctx || !list.length) return false;
+  const s = ctx.createBufferSource(), g = ctx.createGain();
+  s.buffer = list[Math.floor(Math.random() * list.length)];
+  s.playbackRate.value = 1 + (Math.random() * 2 - 1) * detune;
+  g.gain.value = vol;
+  s.connect(g).connect(master);
+  s.start();
+  return true;
 }
 
 /* ---------- Music ---------- */
@@ -158,7 +190,16 @@ export const sfx = {
   heehaw: () => { tone(620, 0.3, 'sawtooth', 0.14, 900); tone(260, 0.5, 'sawtooth', 0.16, 170, 0.32); },
   oink: () => { tone(190, 0.12, 'sawtooth', 0.13, 130); tone(210, 0.14, 'sawtooth', 0.13, 120, 0.16); },
   yeet: () => tone(300, 0.7, 'sine', 0.12, 1800),
-  radarBark: () => { tone(420, 0.05, 'sawtooth', 0.012, 240); tone(400, 0.06, 'sawtooth', 0.012, 220, 0.08); },
+  radarBark: () => {
+    if (playClip(clips.bark, clips.barkVolume, 0.08)) return;
+    const f = 380 + Math.random() * 90; // a tiny, far-away "wuf"
+    tone(f, 0.05, 'sawtooth', 0.014, f * 0.55); tone(f * 0.5, 0.05, 'square', 0.008, f * 0.3);
+    if (Math.random() < 0.5) tone(f * 0.95, 0.06, 'sawtooth', 0.012, f * 0.5, 0.09);
+  },
+  radarSweep: () => {
+    if (playClip(clips.sweep, clips.sweepVolume)) return;
+    tone(1480, 0.5, 'sine', 0.018, 1440); tone(2960, 0.25, 'sine', 0.005); // soft sonar ping
+  },
   cutin: () => { const a = ac(); if (a) noise(0.28, 0.09, a.currentTime, null, 900); tone(200, 0.25, 'sawtooth', 0.07, 1400); },
   barkBig: () => { for (let i = 0; i < 3; i++) { tone(340 - i * 20, 0.13, 'sawtooth', 0.2, 120, i * 0.17); tone(170, 0.13, 'square', 0.1, 70, i * 0.17); } },
   splat: () => { for (let i = 0; i < 7; i++) tone(240 + Math.random() * 300, 0.09, 'sine', 0.13, 70, i * 0.05); const a = ac(); if (a) noise(0.2, 0.05, a.currentTime + 0.3, null, 1500); },

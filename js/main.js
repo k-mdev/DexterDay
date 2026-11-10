@@ -758,6 +758,7 @@ function updateRadar(dt) {
   const prev = sweep;
   const stepA = dt * 2.4;
   sweep = (sweep + stepA) % (Math.PI * 2);
+  if (sweep < prev) sfx.radarSweep(); // once per rotation
   rctx.clearRect(0, 0, W, W);
   rctx.fillStyle = 'rgba(8, 32, 18, 0.82)';
   rctx.beginPath(); rctx.arc(c, c, R, 0, Math.PI * 2); rctx.fill();

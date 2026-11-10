@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 const matCache = new Map();
 export function mat(color, extra) {
@@ -9,6 +10,21 @@ export function mat(color, extra) {
 
 export function box(parent, w, h, d, color, x = 0, y = 0, z = 0) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), typeof color === 'number' ? mat(color) : color);
+  m.position.set(x, y, z);
+  m.castShadow = true; m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+
+// Soft-edged box with smooth shading: keeps the chunky proportions but loses the hard cube corners.
+const smoothCache = new Map();
+function smat(color) {
+  if (!smoothCache.has(color)) smoothCache.set(color, new THREE.MeshStandardMaterial({ color, roughness: 0.8 }));
+  return smoothCache.get(color);
+}
+export function softBox(parent, w, h, d, color, x = 0, y = 0, z = 0, round = 0.38) {
+  const r = Math.min(w, h, d) * round;
+  const m = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 3, r), typeof color === 'number' ? smat(color) : color);
   m.position.set(x, y, z);
   m.castShadow = true; m.receiveShadow = true;
   parent.add(m);
@@ -35,6 +51,7 @@ export function makeDog(o = {}) {
   const g = new THREE.Group();
   const inner = new THREE.Group();
   g.add(inner);
+  const box = softBox; // every part of a dog is a rounded box
   const bodyY = c.legLen + c.bodyH / 2;
   const body = box(inner, c.bodyW, c.bodyH, c.bodyLen, c.color, 0, bodyY, 0);
   // slightly broader chest
