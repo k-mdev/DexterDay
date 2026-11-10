@@ -412,7 +412,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
     'By nightfall the dogs held the shoreline. Boats kept landing all along the coast, and barrage balloons went up over the beach.',
     'They pushed inland off the sand. The first town was freed the very next morning, and its squirrels came out to cheer.',
     'It was only the beginning. The fight for Normandy went on all summer, and the capital was not freed until late August.',
-    'On June 6, 1944, about 156,000 Allied troops landed on five beaches in Normandy. Thousands never came home. Remembered with respect.',
+    'About 156,000 dogs landed on five beaches that day. Thousands of fellow biscuits crumbled, never to be tasted.',
   ];
   const caption = (text) => { $('dday-cap').textContent = text; };
   const hud = () => {
