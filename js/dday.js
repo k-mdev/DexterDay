@@ -40,7 +40,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
   }
 
   /* ---- squirrel positions ---- */
-  const posts = [];
+  const posts = [], bigGuns = [];
   const concrete = 0x9a9d9f;
   for (const x of [-15, -9, -3, 3, 9, 15]) {                       // bunkers along the foot of the bluff
     box(scene, 3.4, 1.5, 2.6, concrete, x, 0.75, -17.3); box(scene, 3.8, 0.3, 3.0, 0x85888a, x, 1.6, -17.3);
@@ -53,7 +53,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
     box(g, 1.3, 1.1, 1.6, 0x5c6650, 0, 1.2, 0);
     const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 4.6, 10), mat(0x4a5340)); barrel.rotation.x = Math.PI / 2 - 0.22; barrel.position.set(0, 1.9, 2.4); barrel.castShadow = true; g.add(barrel);
     box(g, 0.5, 0.5, 0.4, 0x3a4233, 0, 2.42, 4.55);
-    g.position.set(x, 1.6, -24); scene.add(g);
+    g.position.set(x, 1.6, -24); scene.add(g); bigGuns.push({ g, x, kick: 0 });
     posts.push({ x: x + 1.5, y: 1.6, z: -23 });
   }
   for (const [x, z] of [[-11, -8.5], [11, -6.5]]) {                // sandbag nests on the beach
@@ -194,7 +194,32 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
     g.visible = false; scene.add(g); bombs.push({ mesh: g, v: new THREE.Vector3(), active: false });
     const p = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), mat(0xe6d6a8, { transparent: true, opacity: 0 })); p.visible = false; scene.add(p); puffs.push({ mesh: p, t: 0 });
   }
-  let allyT = 1, gunT = 0.5, bombT = 2;
+  const smokes = [];
+  for (let i = 0; i < 22; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), mat(0x6f6f6f, { transparent: true, opacity: 0, depthWrite: false })); m.visible = false; scene.add(m); smokes.push({ mesh: m, t: 0, life: 1, vx: 0, vy: 1, size: 1 }); }
+  const smoke = (x, y, z, size = 1, life = 3.2, dark = 0.45) => {
+    const o = smokes.find((q) => q.t <= 0) || smokes[0];
+    o.t = o.life = life; o.size = size; o.vx = rand(0.4, 1.1); o.vy = rand(0.7, 1.3);
+    o.mesh.position.set(x, y, z); o.mesh.material.color.setScalar(dark + rand(-0.08, 0.08)); o.mesh.visible = true;
+  };
+  const divots = []; let divotI = 0;
+  for (let i = 0; i < 14; i++) {
+    const g = new THREE.Group();
+    const rim = new THREE.Mesh(new THREE.CircleGeometry(1.25, 12), mat(0xe6d6a8)); rim.rotation.x = -Math.PI / 2; g.add(rim);
+    const hole = new THREE.Mesh(new THREE.CircleGeometry(0.85, 12), mat(0xa18a58)); hole.rotation.x = -Math.PI / 2; hole.position.y = 0.006; g.add(hole);
+    const core = new THREE.Mesh(new THREE.CircleGeometry(0.45, 10), mat(0x7d6a42)); core.rotation.x = -Math.PI / 2; core.position.y = 0.012; g.add(core);
+    for (let k = 0; k < 5; k++) { const a = k * 1.3 + i; const c = softBox(g, 0.18, 0.1, 0.16, 0xb7a377, Math.cos(a) * 1.3, 0.05, Math.sin(a) * 1.3); c.castShadow = false; } // scattered clods
+    g.visible = false; scene.add(g); divots.push(g);
+  }
+  const divot = (x, z, size = 1) => { const g = divots[divotI++ % divots.length]; g.position.set(x, 0.02, z); g.scale.setScalar(size); g.rotation.y = rand(0, 6); g.visible = true; };
+  const flash = new THREE.Mesh(new THREE.SphereGeometry(0.7, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0 })); scene.add(flash);
+  let flashT = 0;
+  const burst = (i, x, z, vol) => { // sand puff + smoke + crater + a small, quiet boom
+    const p = puffs[i]; p.t = 0.6; p.mesh.visible = true; p.mesh.position.set(x, 0.2, z);
+    smoke(x, 0.5, z, 0.9, 3.4); smoke(x + rand(-0.4, 0.4), 0.9, z + rand(-0.4, 0.4), 0.6, 2.6, 0.6);
+    divot(x, z, rand(0.75, 1.15));
+    sfx.boom(vol * clamp(1 - Math.hypot(x - st.x, z - st.z) / 32, 0.3, 1));
+  };
+  let allyT = 1, gunT = 0.5, bombT = 2, popT = 5, driftT = 0;
   function ambience(dt, fighting) {
     sails.rotation.z += dt * 0.7;
     // allied dogs sprint up the beach and vanish into the smoke at the bunker line
@@ -226,31 +251,57 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
       }
     }
     for (const t of tracers) { if (t.life <= 0) continue; t.life -= dt; t.mesh.position.addScaledVector(t.v, dt); if (t.life <= 0) t.mesh.visible = false; }
-    // acorn bombs whistling down; they always land a few steps away from Dexter
+    // the squirrels' big guns: muzzle flash, recoil, smoke, and an acorn shell lobbed onto the beach.
+    // Shells always land a few steps away from Dexter.
     bombT -= dt;
     if (bombT <= 0 && fighting) {
-      bombT = rand(1.6, 3.4);
-      const b = bombs.find((o) => !o.active);
+      bombT = rand(2.2, 4.2);
+      const b = bombs.find((o) => !o.active), gun = bigGuns[Math.floor(Math.random() * bigGuns.length)];
       if (b) {
         let x, z, tries = 0;
-        do { x = rand(-22, 22); z = rand(-13, SHORE_Z - 1); } while (Math.hypot(x - st.x, z - st.z) < 4.5 && tries++ < 10);
-        b.active = true; b.mesh.visible = true; b.mesh.position.set(x + rand(-6, 6), 24, z - 9); b.tx = x; b.tz = z;
-        b.v.set((x - b.mesh.position.x) / 1.5, -16, (z - b.mesh.position.z) / 1.5);
-        sfx.whistle();
+        do { x = gun.x + rand(-14, 14); z = rand(-11, SHORE_Z - 1); } while (Math.hypot(x - st.x, z - st.z) < 4.5 && tries++ < 10);
+        const mx = gun.x, my = 4.6, mz = -19.3, T = 1.7, G = 18;
+        b.active = true; b.mesh.visible = true; b.mesh.position.set(mx, my, mz);
+        b.v.set((x - mx) / T, (0.2 - my) / T + 0.5 * G * T, (z - mz) / T); b.g = G;
+        gun.kick = 1; flash.position.set(mx, my, mz + 0.3); flashT = 0.14;
+        smoke(mx, my, mz + 0.4, 0.8, 2.4, 0.75); smoke(mx + 0.3, my + 0.2, mz + 0.9, 0.5, 1.8, 0.8);
+        sfx.boom(0.3); sfx.whistle();
       }
     }
+    for (const gun of bigGuns) { gun.kick = Math.max(0, gun.kick - dt * 3); gun.g.position.z = -24 - gun.kick * 0.45; } // recoil
+    flashT = Math.max(0, flashT - dt); flash.material.opacity = flashT > 0 ? 0.95 : 0; flash.scale.setScalar(0.6 + (0.14 - flashT) * 9);
     for (let i = 0; i < bombs.length; i++) {
       const b = bombs[i];
       if (b.active) {
+        b.v.y -= b.g * dt;
         b.mesh.position.addScaledVector(b.v, dt); b.mesh.rotation.x += dt * 5; b.mesh.rotation.z += dt * 3;
-        if (b.mesh.position.y <= 0.2) {
-          b.active = false; b.mesh.visible = false;
-          const p = puffs[i]; p.t = 0.6; p.mesh.visible = true; p.mesh.position.set(b.mesh.position.x, 0.2, b.mesh.position.z);
-          sfx.boom(clamp(1 - Math.hypot(b.mesh.position.x - st.x, b.mesh.position.z - st.z) / 30, 0.25, 1));
-        }
+        if (b.mesh.position.y <= 0.2 && b.v.y < 0) { b.active = false; b.mesh.visible = false; burst(i, b.mesh.position.x, b.mesh.position.z, 0.55); }
       }
       const p = puffs[i];
       if (p.t > 0) { p.t -= dt; const k = 1 - p.t / 0.6; p.mesh.scale.setScalar(0.4 + k * 2.6); p.mesh.material.opacity = 0.7 * (1 - k); if (p.t <= 0) p.mesh.visible = false; }
+    }
+    // every now and then a small, quiet pop somewhere further off
+    popT -= dt;
+    if (popT <= 0 && fighting) {
+      popT = rand(4, 8);
+      let x, z, tries = 0;
+      do { x = rand(-23, 23); z = rand(-12, SHORE_Z - 1); } while (Math.hypot(x - st.x, z - st.z) < 7 && tries++ < 10);
+      burst(Math.floor(Math.random() * puffs.length), x, z, 0.3);
+    }
+    // smoke hanging over the battlefield: drifting up from the bluff and from old craters
+    driftT -= dt;
+    if (driftT <= 0) {
+      driftT = 0.45;
+      if (Math.random() < 0.6) smoke(rand(-26, 26), 1.8, rand(-21, -17), rand(0.9, 1.5), 4.5, 0.55);
+      const d = divots[Math.floor(Math.random() * divots.length)];
+      if (d.visible && Math.random() < 0.5) smoke(d.position.x, 0.3, d.position.z, 0.45, 2.6, 0.5);
+    }
+    for (const o of smokes) {
+      if (o.t <= 0) continue;
+      o.t -= dt; const k = 1 - o.t / o.life;
+      o.mesh.position.x += o.vx * dt; o.mesh.position.y += o.vy * dt;
+      o.mesh.scale.setScalar(o.size * (0.5 + k * 1.9)); o.mesh.material.opacity = 0.55 * Math.sin(Math.min(1, k * 1.15) * Math.PI);
+      if (o.t <= 0) o.mesh.visible = false;
     }
   }
 
@@ -272,6 +323,7 @@ export function createDday({ keys, stick, fireHeld, onEnd }) {
     for (const c of crew) { c.gone = false; c.out = 0; c.mesh.visible = true; c.mesh.scale.setScalar(c.base); c.mesh.rotation.set(0, Math.PI, 0); }
     buddy.down = 0; stars.visible = false; bonk.visible = false;
     for (const b of bombs) { b.active = false; b.mesh.visible = false; }
+    for (const d of divots) d.visible = false; for (const o of smokes) { o.t = 0; o.mesh.visible = false; }
     for (const s of squirrels) { s.hp = 3; s.done = false; s.flag.visible = false; s.goo.visible = false; s.cool = rand(2, 5); s.mesh.rotation.set(0, 0, 0); }
     Object.assign(st, { phase: 'boat', t: 0, x: 0, y: 0.45, z: 36, face: Math.PI, move: 0, hp: MAX_HP, count: 0, hurt: 0, boatZ: 36 });
     ramp.rotation.x = 0;

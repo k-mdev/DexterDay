@@ -254,8 +254,8 @@ export const sfx = {
   oink: () => { tone(190, 0.12, 'sawtooth', 0.13, 130); tone(210, 0.14, 'sawtooth', 0.13, 120, 0.16); },
   yeet: () => tone(300, 0.7, 'sine', 0.12, 1800),
   gunfire: () => { const a = ac(); if (!a) return; const n = 3 + Math.floor(Math.random() * 5); for (let i = 0; i < n; i++) { noise(0.035, 0.03, a.currentTime + i * 0.07, null, 1800); tone(150, 0.03, 'square', 0.012, 70, i * 0.07); } },
-  whistle: () => tone(1900, 1.3, 'sine', 0.02, 500),
-  boom: (v = 1) => { const a = ac(); if (!a) return; tone(95, 0.45, 'sine', 0.2 * v, 32); noise(0.4, 0.09 * v, a.currentTime, null, 200); },
+  whistle: () => tone(1700, 1.5, 'sine', 0.012, 520),
+  boom: (v = 1) => { const a = ac(); if (!a) return; tone(95, 0.4, 'sine', 0.13 * v, 32); noise(0.35, 0.05 * v, a.currentTime, null, 200); }, // deliberately soft
   spit: () => tone(520 + Math.random() * 160, 0.05, 'sine', 0.05, 220),
   squeak: () => { tone(1500, 0.06, 'square', 0.05, 2100); tone(1900, 0.06, 'square', 0.04, 1400, 0.06); },
   radarBark: () => {
