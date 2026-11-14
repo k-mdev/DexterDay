@@ -8,6 +8,7 @@ import { sfx } from './sfx.js';
 import { runBattle, RIVALS } from './battle.js';
 import { createDday } from './dday.js';
 import { createHouse, ARRIVE } from './house.js';
+import { createWorld, OUTER_R, cutaway, viewU } from './world.js';
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -26,7 +27,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9fd3f0);
 scene.fog = new THREE.Fog(0x9fd3f0, 40, 95);
-const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 220);
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 130); // the fog swallows everything past ~95 anyway
 camera.position.set(0, 12, 20);
 
 const hemi = new THREE.HemisphereLight(0xdfefff, 0x4a6b3a, 0.9);
@@ -37,7 +38,7 @@ sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 120 });
 sun.shadow.bias = -0.0015;
-scene.add(sun);
+scene.add(sun); scene.add(sun.target);
 
 function resize() {
   renderer.setSize(window.innerWidth, window.innerHeight, false);
@@ -48,7 +49,7 @@ window.addEventListener('resize', resize);
 resize();
 
 /* ---------- World ---------- */
-const WORLD_R = 34;
+const WORLD_R = OUTER_R; // the yard is r < 34; past the tree line the neighbourhood goes on to here
 const POND = { x: 21, z: -13, r: 7.5 }; // the lake, to the right of the house
 const BOWL = { x: -2.5, z: -9.3 };
 const BED = { x: -4.6, z: -13.2 };
@@ -57,7 +58,7 @@ const GARAGE = { x0: -2.3, x1: 9.3, z0: 15.7, z1: 23.3 };
 let trees = [];     // {x,z,r,mesh} — replanted each season
 const solids = [];  // {x,z,r} — fixed props that never move
 
-const ground = new THREE.Mesh(new THREE.CircleGeometry(110, 48), mat(0x6fb35a, {}));
+const ground = new THREE.Mesh(new THREE.CircleGeometry(190, 56), mat(0x6fb35a, {}));
 ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 const clearing = new THREE.Mesh(new THREE.CircleGeometry(30, 40), mat(0x7cc063, {}));
 clearing.rotation.x = -Math.PI / 2; clearing.position.y = 0.01; clearing.receiveShadow = true; scene.add(clearing);
@@ -87,7 +88,8 @@ const yard = makeYard();
 scene.add(yard);
 const inHouseZone = (x, z) => x > -9 && x < 9 && z < -8 && z > -23;
 const inFarmZone = (x, z) => (x > -4.5 && z > 4 && z < 25) || (x > 8 && z < 0 && z > -22) || (x > -15 && x < 9 && z < -4 && z > -29); // driveway+road, lakeside, yard around the house
-const inWater = (x, z) => inPond(x, z) || Math.hypot(x - POOL.x, z - POOL.z) < POOL.r;
+const outer = createWorld(scene); // the neighbourhood past the forest
+const inWater = (x, z) => inPond(x, z) || Math.hypot(x - POOL.x, z - POOL.z) < POOL.r || outer.water(x, z);
 const inPond = (x, z, pad = 0) => Math.hypot(x - POND.x, z - POND.z) < POND.r + pad;
 
 for (const [x, z, r] of [[8.4, 6.7, 0.45], [-10.5, -8.6, 0.8], [-13.4, -7.2, 0.3], [24.1, 7.2, 0.7], [21, -2.6, 1.0], [11.3, -11.5, 0.95], [10.6, -7.2, 0.8], [14, -4.2, 1.2], [8, -25.6, 0.6], [-10.5, 17.5, 1.5], [-7.4, 20.4, 1.0]])
@@ -132,24 +134,23 @@ function buildNature(day) {
   const clear = (x, z, gap) => !trees.some((t) => Math.hypot(t.x - x, t.z - z) < gap) && !solids.some((p) => Math.hypot(p.x - x, p.z - z) < p.r + 2.2);
   const plant = (kind, x, z, sc, solid = true) => {
     const t = makeTree(kind, sc, pal(), R() * 6.28);
+    t.traverse((o) => { if (o.isMesh) o.material = cutaway(o.material); }); // leaves never hide Dexter
     t.position.set(x, 0, z); nature.add(t);
     if (solid) trees.push({ x, z, r: 0.55 * sc, mesh: t });
   };
   for (let i = 0; i < 34; i++) for (let tries = 0; tries < 30; tries++) {          // scattered through the yard
     const a = rr(0, Math.PI * 2), r = rr(9, 35), x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (inHouseZone(x, z) || inFarmZone(x, z) || inPond(x, z, 2.5) || (Math.abs(x) < 3 && z < 9 && z > -12) || !clear(x, z, 4.5)) continue;
+    if (inHouseZone(x, z) || inFarmZone(x, z) || inPond(x, z, 2.5) || (Math.abs(x) < 3 && z < 9 && z > -12) || outer.keepClear(x, z) || !clear(x, z, 4.5)) continue;
     plant(R() < 0.6 ? 'pine' : 'round', x, z, rr(0.8, 1.25)); break;
   }
   for (let i = 0; i < 26; i++) for (let tries = 0; tries < 20; tries++) {          // the forest on the left
     const x = rr(-33, -15), z = rr(-26, 22);
-    if (x * x + z * z > 34.5 * 34.5 || !clear(x, z, 3.2)) continue;
+    if (x * x + z * z > 34.5 * 34.5 || outer.keepClear(x, z) || !clear(x, z, 3.2)) continue;
     plant(R() < 0.7 ? 'pine' : 'round', x, z, rr(0.85, 1.3)); break;
   }
-  for (let i = 0; i < 230; i++) {                                                 // the tree line beyond the yard
-    const a = rr(0, Math.PI * 2), r = rr(38, 75), x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (z > 26 && r < 54) continue; // keep the camera's side of the clearing open
-    plant(R() < 0.75 ? 'pine' : 'round', x, z, rr(1, 1.8), false);
-  }
+  // the forest and neighbourhood beyond the yard (merged meshes, its own collision grid);
+  // keeps clear of the farm road, the donkey and pig's spot and the lake
+  outer.plantForest(season, R, (x, z) => inFarmZone(x, z) || inPond(x, z, 3) || (x > 9 && x < 40 && z > 9 && z < 24));
   const offLawn = (x, z) => inPond(x, z, 0.5) || (x > -8 && x < 8 && z < -9.5 && z > -26) || (x > -3 && x < 10 && z > 5 && z < 24);
   const scatter = (n, make) => { for (let i = 0; i < n; i++) { const a = rr(0, Math.PI * 2), r = rr(3, 34), x = Math.cos(a) * r, z = Math.sin(a) * r; if (offLawn(x, z)) continue; const o = make(); o.position.x = x; o.position.z = z; nature.add(o); } };
   scatter(season.flowers, () => makeFlower(R));
@@ -241,7 +242,7 @@ function blocked(x, z, y) {
   for (const t of solids) { const dx = x - t.x, dz = z - t.z; if (dx * dx + dz * dz < (t.r + 0.4) ** 2) return true; }
   return false;
 }
-let outerBlocked = () => false; // the neighbourhood beyond the forest (set up further down)
+const outerBlocked = (x, z) => outer.blocked(x, z); // forest trees, neighbours' houses, the pool
 // Dexter's movement asks `world` about walls, floors and water, so the same code drives him indoors.
 const outdoors = { blocked, surfaceY, water: (x, z) => inWater(x, z) };
 let world = outdoors;
@@ -313,6 +314,17 @@ function spawnTreat(type) {
   mesh.position.set(p.x, 0.6, p.z);
   scene.add(mesh);
   treats.push({ mesh, type, x: p.x, z: p.z, ph: rand(0, 6) });
+}
+// a reward for exploring: treats dropped out in the neighbourhood, on roads, lanes and in yards
+function spawnTreatOut() {
+  for (let i = 0; i < 60; i++) {
+    const a = rand(0, Math.PI * 2), r = rand(40, OUTER_R - 6), x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (blocked(x, z, 0) || inWater(x, z)) continue;
+    const type = Math.random() < 0.5 ? 'bacon' : Math.random() < 0.6 ? 'cheese' : 'drumstick';
+    const mesh = makeTreat(type); mesh.position.set(x, 0.6, z); scene.add(mesh);
+    treats.push({ mesh, type, x, z, ph: rand(0, 6) });
+    return;
+  }
 }
 function spawnDig() {
   const p = randomSpot(8, 31);
@@ -510,6 +522,7 @@ function startDay(day) {
   const n = Math.min(26, 12 + day * 2);
   for (let i = 0; i < n; i++) spawnTreat();
   spawnTreat('golden');
+  for (let i = 0; i < 6; i++) spawnTreatOut();
   for (let i = 0; i < 4; i++) spawnDig();
   placeSquirrel();
   for (let i = 0; i < 3; i++) spawnToad(i === 0);
@@ -1302,7 +1315,10 @@ function updateSky() {
   hemi.intensity = a[3] + (b[3] - a[3]) * k;
   house.userData.windowMat.emissiveIntensity = a[4] + (b[4] - a[4]) * k;
   const ang = ((t - 7) / 17.5) * Math.PI * 0.85 + 0.25;
-  sun.position.set(Math.cos(ang) * 45, 14 + Math.sin(ang) * 34, 22);
+  // the sun (and its shadow box) follows Dexter so shadows still work out in the neighbourhood
+  const fx = S.mode === 'title' ? 0 : dex.x, fz = S.mode === 'title' ? -8 : dex.z;
+  sun.position.set(fx + Math.cos(ang) * 45, 14 + Math.sin(ang) * 34, fz + 22);
+  sun.target.position.set(fx, 0, fz); sun.target.updateMatrixWorld();
 }
 
 // Shared by the yard and the house: warnings, then at 2 AM Dexter falls asleep wherever he is.
@@ -1361,9 +1377,14 @@ function updateCamera(dt) {
     // Behind the house or right in front of the garage the usual angle would be blocked,
     // so the camera swings up and looks down over the roof instead.
     const hidden = (dex.z < -21.3 && Math.abs(dex.x) < 10.5) || (dex.z > 7.5 && dex.z < 16.5 && dex.x > -4.5 && dex.x < 11.5);
-    camLift += ((hidden ? 1 : 0) - camLift) * Math.min(1, dt * 3);
+    // Out in the forest the camera tilts a bit steeper to see between the trees.
+    const deep = clamp((Math.hypot(dex.x, dex.z) - 31) / 8, 0, 1);
+    camLift += ((hidden ? 1 : deep * 0.45) - camLift) * Math.min(1, dt * 3);
     camWant.set(dex.x, dex.y + 8 + camLift * 8, dex.z + 9.5 - camLift * 5.5); lookWant.set(dex.x, dex.y + 1, dex.z);
   }
+  // tell the tree shader where the camera and Dexter are (canopies on that line are cut away)
+  viewU.uCut.value = S.mode === 'play' || S.mode === 'cutscene' ? 1 : 0;
+  viewU.uCam.value.copy(camera.position); viewU.uDex.value.set(dex.x, dex.y, dex.z);
   if (camSnap) { camSnap = false; camera.position.copy(camWant); camLook.copy(lookWant); } // hard cut through a doorway
   const k = Math.min(1, dt * (battleCam ? 5 : 6));
   camera.position.lerp(camWant, k);
