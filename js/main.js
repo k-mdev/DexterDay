@@ -7,11 +7,16 @@ import {
 import { sfx } from './sfx.js';
 import { runBattle, RIVALS } from './battle.js';
 import { createDday } from './dday.js';
+import { createHouse, ARRIVE } from './house.js';
 
 const $ = (id) => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const SAVE_KEY = 'dexterday-save-v1';
+const DEX_WALK = 6, DEX_ZOOM = 10.5;
+const RIVAL_MAX = DEX_WALK * 0.7; // rivals never outrun a walking Dexter, so there is always time to catch them
+const PASS_OUT = 26;              // 2 AM: Dexter falls asleep wherever he is
+const isNight = () => S.time >= 20;
 
 /* ---------- Renderer / scene ---------- */
 const renderer = new THREE.WebGLRenderer({ canvas: $('game'), antialias: true });
@@ -104,6 +109,7 @@ const SEASONS = [
   { name: 'Winter', icon: '🌴', ground: 0x8fbf55, clearing: 0x9fcc60, water: 0x45b5d6, flowers: 90,   // Florida "winter": greener, and hotter
     pines: [[0x2f7a45, 0x3a8a50, 0x48a05c]], rounds: [[0x4fa84a, 0x6cc05a], [0x3f9648, 0x58b055]], weather: null },
 ];
+const SHOW_WEATHER = false; // drifting petals/leaves around Dexter: switched off
 const seasonKey = (day) => Math.floor((day - 1) / 2);
 const seasonOf = (day) => SEASONS[seasonKey(day) % SEASONS.length];
 // It's Florida. The seasons change; the temperature only ever goes one way.
@@ -154,7 +160,7 @@ function buildNature(day) {
   arenaGround.material.color.setHex(season.ground);
   // weather: petals, leaves or snow drifting down around Dexter
   if (weather) { scene.remove(weather.points); weather.points.geometry.dispose(); weather = null; }
-  if (season.weather) {
+  if (season.weather && SHOW_WEATHER) {
     const w = season.weather, pos = new Float32Array(w.n * 3);
     for (let i = 0; i < w.n; i++) { pos[i * 3] = rr(-22, 22); pos[i * 3 + 1] = rr(0, 15); pos[i * 3 + 2] = rr(-22, 22); }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -201,25 +207,44 @@ let inArena = false;
 
 /* ---------- Height & collision ---------- */
 const PORCH_H = 0.7;
-// solid rectangles [x0, x1, z0, z1]: house walls, garage, back screen porch, back stairs
-const BLOCKS = [[-5.5, 5.5, -22, -14.05], [GARAGE.x0, GARAGE.x1, GARAGE.z0, GARAGE.z1], [-4.5, 1.6, -25.5, -21.4], [1.5, 6.2, -24.3, -22.3]];
+// solid rectangles [x0, x1, z0, z1]: house walls (must stay first), garage, back stairs,
+// then the screened porch's west, north and east screens (gap in the east one for the screen door)
+const BLOCKS = [[-5.5, 5.5, -22, -14.05], [GARAGE.x0, GARAGE.x1, GARAGE.z0, GARAGE.z1], [1.5, 6.2, -23.95, -22.65],
+  [-4.6, -4.0, -25.6, -21.4], [-4.6, 1.7, -25.6, -25.0], [1.2, 1.7, -25.6, -24.7], [1.2, 1.7, -23.75, -21.4]];
+// Doors Dexter can bark open. `open` eases 0..1; `want` is where it is heading.
+const doors = { front: { open: 0, want: 0, t: 0 }, slider: { open: 0, want: 0, t: 0 } };
 const inPorch = (x, z) => x >= -7.5 && x <= 7.5 && z >= -21.5 && z <= -11.5;
 const inSteps = (x, z) => x >= -1.2 && x <= 1.2 && z > -11.5 && z <= -9.7;
 const stepH = (z) => clamp((PORCH_H * (-9.7 - z)) / 1.8, 0, PORCH_H);
+// The back edge of the wrap-around porch (beside the house, both sides) has no railing:
+// Dexter can hop down off it into the backyard, and hop back up onto it.
+const porchBackGap = (x, z) => Math.abs(x) > 5.5 && Math.abs(x) < 7.3 && z < -20.6 && z > -22.4;
+// Back screened porch: a low slab Dexter can walk around in, screen door on its east side.
+const inScreenPorch = (x, z) => x > -4.0 && x < 1.2 && z > -25.0 && z < -21.4;
+const SCREEN_H = 0.3;
 function surfaceY(x, z, y) {
-  if (inPorch(x, z) && PORCH_H <= y + 0.6) return PORCH_H;
+  if (inPorch(x, z) && (PORCH_H <= y + 0.6 || porchBackGap(x, z))) return PORCH_H;
   if (inSteps(x, z)) return stepH(z);
+  if (inScreenPorch(x, z)) return SCREEN_H;
   return 0;
 }
 function blocked(x, z, y) {
   if (x * x + z * z > WORLD_R * WORLD_R) return true;
-  for (const b of BLOCKS) if (x > b[0] && x < b[1] && z > b[2] && z < b[3]) return true;
-  if (inPorch(x, z) && y + 0.6 < PORCH_H) return true;                   // porch foundation
-  if (y > 0.45 && !inPorch(x, z) && !inSteps(x, z)) return true;         // porch railing
+  for (const b of BLOCKS) if (x > b[0] && x < b[1] && z > b[2] && z < b[3]) {
+    if (b === BLOCKS[0] && doors.front.open > 0.7 && Math.abs(x) < 0.62 && z > -15.4) continue; // open front door
+    return true;
+  }
+  if (outerBlocked(x, z) || pileBlocked(x, z)) return true;
+  if (inPorch(x, z) && y + 0.6 < PORCH_H && !porchBackGap(x, z)) return true; // porch foundation
+  if (y > 0.45 && !inPorch(x, z) && !inSteps(x, z) && !(porchBackGap(x, z) && z < -21.5)) return true; // porch railing
   for (const t of trees) { const dx = x - t.x, dz = z - t.z; if (dx * dx + dz * dz < (t.r + 0.4) ** 2) return true; }
   for (const t of solids) { const dx = x - t.x, dz = z - t.z; if (dx * dx + dz * dz < (t.r + 0.4) ** 2) return true; }
   return false;
 }
+let outerBlocked = () => false; // the neighbourhood beyond the forest (set up further down)
+// Dexter's movement asks `world` about walls, floors and water, so the same code drives him indoors.
+const outdoors = { blocked, surfaceY, water: (x, z) => inWater(x, z) };
+let world = outdoors;
 function randomSpot(minR = 4, maxR = 32) {
   for (let i = 0; i < 80; i++) {
     const a = rand(0, Math.PI * 2), r = rand(minR, maxR);
@@ -296,12 +321,12 @@ function spawnDig() {
   digs.push({ mesh, x: p.x, z: p.z });
 }
 function spawnRival() {
-  const pool = ['taco', 'pug'];
-  if (S.day >= 2) pool.push('corgi');
-  if (S.day >= 3) pool.push('poodle');
-  if (S.day >= 4) pool.push('husky');
-  if (S.time >= 19) pool.push('raccoon', 'raccoon');
-  const key = pool[Math.floor(Math.random() * pool.length)];
+  const pool = ['taco', 'pug', 'beagle', 'dachshund'];
+  if (S.day >= 2) pool.push('corgi', 'shiba');
+  if (S.day >= 3) pool.push('poodle', 'dalmatian', 'golden');
+  if (S.day >= 4) pool.push('husky', 'boxer', 'shepherd');
+  // after dark the neighbourhood dogs go inside and the raccoons come out
+  const key = isNight() && Math.random() < 0.85 ? 'raccoon' : pool[Math.floor(Math.random() * pool.length)];
   const def = RIVALS[key];
   const level = Math.max(1, S.day + (Math.random() < 0.3 ? 1 : 0) - (Math.random() < 0.3 ? 1 : 0));
   const a = rand(0.15, Math.PI - 0.15) * (Math.random() < 0.5 ? 1 : -1) + Math.PI / 2; // not from behind the house
@@ -311,7 +336,7 @@ function spawnRival() {
   mesh.position.set(x, 0, z);
   scene.add(mesh);
   const hp = Math.round(def.hp * (1 + 0.14 * (level - 1)));
-  rivals.push({ key, mesh, name: def.name, level, hp, maxHp: hp, atk: def.atk + 0.6 * (level - 1), loot: 0, speed: def.speed, state: 'prowl', beaten: false, alerted: false, wx: 0, wz: 0, wt: 0, move: 0 });
+  rivals.push({ key, mesh, name: def.name, level, hp, maxHp: hp, atk: def.atk + 0.6 * (level - 1), loot: 0, speed: Math.min(def.speed, RIVAL_MAX), state: 'prowl', beaten: false, alerted: false, wx: 0, wz: 0, wt: 0, move: 0 });
 }
 function clearEntities() {
   for (const t of treats) scene.remove(t.mesh);
@@ -477,7 +502,7 @@ function updateFriends(dt) {
 
 /* ---------- Day flow ---------- */
 function startDay(day) {
-  S.day = day; S.time = 7; S.carried = 0; S.stamina = 100; S.grace = 0; S.nightWarned = false;
+  S.day = day; S.time = 7; S.carried = 0; S.stamina = 100; S.grace = 0; S.nightWarned = 0;
   applyLevel(); S.hp = S.maxHp;
   S.today = { startStash: S.stash, wins: 0, stolen: 0, eaten: 0 };
   const newSeason = buildNature(day);
@@ -493,6 +518,10 @@ function startDay(day) {
   sfx.music('day'); sfx.ambient('day');
   spawnT = Math.max(30, 45 - day * 2); treatT = 6;
   Object.assign(dex, { x: BED.x, y: PORCH_H, z: BED.z + 0.95, vy: 0, face: 0, dig: 0, digSpot: null });
+  scene.add(dex.mesh); world = outdoors;
+  for (const d of Object.values(doors)) Object.assign(d, { open: 0, want: 0, t: 0 });
+  home.resetDay();
+  scheduleDelivery();
   S.mode = 'play';
   for (const id of ['title', 'summary', 'help']) $(id).classList.add('hidden');
   $('hud').classList.remove('hidden');
@@ -502,16 +531,17 @@ function startDay(day) {
   toast(day === 1 ? 'Good morning, Dexter! Hop down the porch steps and find some treats.' : newSeason ? `${sn.icon} ${sn.name} has arrived. ${HOTTER[seasonKey(day) % 4]}` : `Day ${day}. Another fine ${sn.name.toLowerCase()} day.`);
 }
 function endDay(passedOut) {
-  const lostCarried = passedOut ? S.carried : 0;
-  if (passedOut) S.carried = 0;
+  if (S.mode === 'house') exitHome(null); // falling asleep indoors still ends the day
+  const lostCarried = passedOut ? S.carried : 0, lostStash = passedOut ? S.stash : 0;
+  if (passedOut) { S.carried = 0; S.stash = 0; } // 2 AM: everything is gone by morning
   S.stash += S.carried; S.carried = 0;
   S.best = Math.max(S.best, S.stash);
   const gained = S.stash - S.today.startStash;
   S.mode = 'summary';
   $('hud').classList.add('hidden'); $('touch').classList.add('hidden');
-  $('sum-title').textContent = passedOut ? `Day ${S.day}: fell asleep in the yard` : `Day ${S.day} complete`;
+  $('sum-title').textContent = passedOut ? `Day ${S.day}: fell asleep at 2 AM` : `Day ${S.day} complete`;
   $('sum-body').innerHTML = `
-    ${passedOut ? `<div>Dexter passed out past midnight. Something made off with <b>${lostCarried}</b> carried treats.</div>` : '<div>Dexter curls up on his blue bed. What a day.</div>'}
+    ${passedOut ? `<div>Dexter stayed up way too late and passed out. Overnight the raccoons cleaned him out: <b>${lostCarried}</b> carried treats and the whole stash of <b>${lostStash}</b>.</div>` : '<div>Dexter curls up on his blue bed. What a day.</div>'}
     <div>Stash change today: <b>${gained >= 0 ? '+' : ''}${gained}</b> 🦴</div>
     <div>Total stash: <b>${S.stash}</b> 🥣</div>
     <div>Rivals sent packing: <b>${S.today.wins}</b> · Treats eaten: <b>${S.today.eaten}</b> · Stolen: <b>${S.today.stolen}</b></div>
@@ -644,12 +674,12 @@ window.addEventListener('keydown', (e) => {
   if (e.repeat) return;
   keys.add(e.code);
   sfx.unlock();
-  if (S.mode === 'play') {
+  if (S.mode === 'play' || S.mode === 'house') {
     if (e.code === 'KeyE' || e.code === 'Space') interact();
     if (e.code === 'KeyQ' || e.code === 'KeyF') snack();
   }
   if (e.code === 'KeyM') toggleMute();
-  if (e.code === 'KeyH' && S.mode === 'play') $('help').classList.toggle('hidden');
+  if (e.code === 'KeyH' && (S.mode === 'play' || S.mode === 'house')) $('help').classList.toggle('hidden');
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
 window.addEventListener('blur', () => keys.clear());
@@ -697,6 +727,10 @@ $('t-zoom').addEventListener('pointercancel', () => { touchZoom = false; });
 const near = (x, z, r) => Math.hypot(dex.x - x, dex.z - z) < r;
 function currentAction() {
   if (dex.dig > 0) return null;
+  if (S.mode === 'house') return home.action(dex);
+  if (dex.y > 0.5 && doors.front.want === 0 && near(0, -14.0, 1.5)) return { type: 'door', door: 'front', label: 'Bark at the front door' };
+  if (inScreenPorch(dex.x, dex.z) && doors.slider.want === 0 && near(-1.9, -22.0, 1.5)) return { type: 'door', door: 'slider', label: 'Bark at the sliding door' };
+  if (delivery.pile && dex.y < 0.4 && near(delivery.pile.x, delivery.pile.z, 2.6) && delivery.pile.left > 0) return { type: 'package', label: `Shred a package (${delivery.pile.left} left)` };
   if (dex.y > 0.5 && near(BED.x, BED.z, 1.9)) return { type: 'sleep', label: S.time < 17 ? 'Bed — it\'s a bit early, but nap anyway' : 'Go to sleep and end the day' };
   if (dex.y < 0.4 && S.grace <= 0) {
     let best = null, bd = 3.2;
@@ -712,10 +746,14 @@ function currentAction() {
   return null;
 }
 function interact() {
-  if (S.mode !== 'play' || !$('help').classList.contains('hidden')) return;
+  if ((S.mode !== 'play' && S.mode !== 'house') || !$('help').classList.contains('hidden')) return;
   const a = currentAction();
   if (!a) { sfx.bark(); dex.barkT = 0.36; return; } // barking at nothing is always allowed
-  if (a.type === 'sleep') endDay(false);
+  if (a.type === 'door') { // a good loud bark, and the door opens for him
+    sfx.bark(); dex.barkT = 0.36; sfx.door();
+    if (S.mode === 'house') home.openDoor(a.door); else { doors[a.door].want = 1; doors[a.door].t = 6; }
+  } else if (a.type === 'package') shredPackage();
+  else if (a.type === 'sleep') endDay(false);
   else if (a.type === 'fight') startBattle(a.rival);
   else if (a.type === 'stash') {
     if (S.carried > 0) {
@@ -725,7 +763,7 @@ function interact() {
   } else if (a.type === 'dig') { dex.dig = 1.2; dex.digSpot = a.spot; sfx.dig(); }
 }
 function snack() {
-  if (S.mode !== 'play') return;
+  if (S.mode !== 'play' && S.mode !== 'house') return;
   if (S.carried < 1) { toast('No treats to eat. Tragic.'); return; }
   if (S.hp >= S.maxHp) { toast('Dexter is already brimming with confidence.'); return; }
   S.carried--; S.today.eaten++;
@@ -763,22 +801,22 @@ function updateDexter(dt) {
     if (dex.dig <= 0) finishDig();
   }
   const wantZoom = (keys.has('ShiftLeft') || keys.has('ShiftRight') || touchZoom) && len > 0.1 && S.stamina > 1;
-  const wet = inWater(dex.x, dex.z) && dex.y < 0.5;
+  const wet = world.water(dex.x, dex.z) && dex.y < 0.5;
   if (wet && !dex.wet) { sfx.splash(); toast('Splash! Zoomies recharge fast in the water.'); }
   dex.wet = wet;
   S.stamina = clamp(S.stamina + (wantZoom ? -28 : wet ? 45 : 13) * dt, 0, 100);
-  const speed = (wantZoom ? 10.5 : 6) * (wet ? 0.7 : 1) * (S.woozy > 0 ? 0.65 : 1);
+  const speed = (wantZoom ? DEX_ZOOM : DEX_WALK) * (wet ? 0.7 : 1) * (S.woozy > 0 ? 0.65 : 1);
   if (len > 0.05) {
     const nx = dex.x + ix * speed * dt, nz = dex.z + iz * speed * dt;
-    if (!blocked(nx, dex.z, dex.y)) dex.x = nx;
-    if (!blocked(dex.x, nz, dex.y)) dex.z = nz;
+    if (!world.blocked(nx, dex.z, dex.y)) dex.x = nx;
+    if (!world.blocked(dex.x, nz, dex.y)) dex.z = nz;
     const target = Math.atan2(ix, iz);
     let diff = target - dex.face;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
     dex.face += diff * Math.min(1, dt * 12);
   }
-  const surf = surfaceY(dex.x, dex.z, dex.y);
+  const surf = world.surfaceY(dex.x, dex.z, dex.y);
   if (dex.y > surf + 0.001) { dex.vy -= 28 * dt; dex.y = Math.max(surf, dex.y + dex.vy * dt); if (dex.y === surf) dex.vy = 0; }
   else { dex.y = surf; dex.vy = 0; }
   dex.move += ((len > 0.05 ? (wantZoom ? 1.35 : 1) * len : 0) - dex.move) * Math.min(1, dt * 10);
@@ -862,13 +900,213 @@ function endDday() {
   updateHud();
 }
 
+/* ---------- The house (enterable level) ----------
+ * Barking at the front door (or the slider on the screened porch) swings it open; walking
+ * through moves Dexter into the interior scene. Outside, everything is frozen in place. */
+const home = createHouse();
+let camSnap = false, toldInside = false;
+const flash = () => { $('fade').classList.add('flash'); setTimeout(() => $('fade').classList.remove('flash'), 900); };
+const EXIT_TO = { front: { x: 0, y: PORCH_H, z: -13.5, face: 0 }, slider: { x: -1.95, y: SCREEN_H, z: -22.7, face: Math.PI } };
+function enterHome(via) {
+  S.mode = 'house'; world = home;
+  home.enter(via);
+  home.scene.add(dex.mesh); dex.mesh.visible = true;
+  const a = ARRIVE[via];
+  Object.assign(dex, { x: a.x, y: a.y, z: a.z, vy: 0, face: a.face, dig: 0, digSpot: null });
+  doors[via].want = 0; // the outside door swings shut behind him
+  $('radar-wrap').classList.add('hidden'); $('prompt').classList.add('hidden');
+  flash(); camSnap = true;
+  if (!toldInside) { toldInside = true; toast('Dexter is inside! There might be a treat or two hidden around the house. Bark at a door to go back out.'); }
+}
+function exitHome(via) {
+  S.mode = 'play'; world = outdoors;
+  scene.add(dex.mesh);
+  if (via) {
+    const a = EXIT_TO[via];
+    Object.assign(dex, { x: a.x, y: a.y, z: a.z, vy: 0, face: a.face });
+    doors[via].open = 1; doors[via].want = 0;
+    flash(); camSnap = true;
+  }
+  $('radar-wrap').classList.remove('hidden');
+  S.grace = 2;
+}
+function updateDoorsOutside(dt) {
+  for (const d of Object.values(doors)) {
+    if (d.want && (d.t -= dt) <= 0) d.want = 0;
+    d.open += (d.want - d.open) * Math.min(1, dt * 5);
+  }
+  house.userData.frontDoor.rotation.y = doors.front.open * 1.7;
+  house.userData.slider.position.x = -1.93 + doors.slider.open * 1.05;
+  // walked in through an open door?
+  if (doors.front.open > 0.7 && Math.abs(dex.x) < 0.6 && dex.z < -14.6 && dex.y > 0.5) { enterHome('front'); return true; }
+  if (doors.slider.open > 0.7 && dex.x > -2.45 && dex.x < -1.45 && dex.z > -21.9 && inScreenPorch(dex.x, dex.z)) { enterHome('slider'); return true; }
+  return false;
+}
+function updateHome(dt) {
+  if ($('help').classList.contains('hidden')) {
+    S.time += dt / 15;
+    S.grace = Math.max(0, S.grace - dt);
+    updateDexter(dt);
+    const r = home.update(dt, dex, camera, S.clock, scene.background, isNight());
+    for (const type of r.got) {
+      const info = TREATS[type]; S.carried += info.value; sfx.pickup();
+      toast(`Found ${type === 'bacon' ? 'some bacon' : `a ${info.name}`} in the house! +${info.value}`);
+    }
+    if (r.got.length) updateHud();
+    if (r.exit) { exitHome(r.exit); return; }
+    if (nightChecks()) return;
+  }
+  showPrompt(dt);
+}
+function showPrompt(dt) {
+  const a = currentAction(), pr = $('prompt');
+  if (a) { pr.textContent = `${isTouch ? '🐾' : 'E'} · ${a.label}`; pr.classList.remove('hidden'); } else pr.classList.add('hidden');
+  hudT -= dt; if (hudT <= 0) { hudT = 0.12; updateHud(); }
+}
+
+/* ---------- Delivery truck ----------
+ * Once a day, at a random time, a delivery van comes down the road, rolls up the driveway
+ * and across the lawn, and unloads a frankly unreasonable stack of packages by the porch. */
+const truck = makeTruck(); truck.visible = false; scene.add(truck);
+const ROUTE_IN = [[48, 13], [12, 13], [5, 12.2], [3.4, 7], [2.2, 1], [1.8, -4.4]];
+const ROUTE_BACK = [[1.8, -4.4], [2.2, 1], [3.4, 7]];
+const ROUTE_OUT = [[3.4, 7], [5, 12.2], [12, 13], [48, 13]];
+const ROUTE_IN_LEN = ROUTE_IN.reduce((acc, p, i) => (i ? acc + Math.hypot(p[0] - ROUTE_IN[i - 1][0], p[1] - ROUTE_IN[i - 1][1]) : 0), 0);
+const PILE_AT = { x: 3.4, z: -8.9 };
+const delivery = { at: 99, phase: 'none', s: 0, t: 0, pile: null, flying: [] };
+function polyAt(pts, s) {
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [ax, az] = pts[i], [bx, bz] = pts[i + 1], l = Math.hypot(bx - ax, bz - az);
+    if (s <= l || i === pts.length - 2) { const k = Math.min(1, s / l); return { x: ax + (bx - ax) * k, z: az + (bz - az) * k, hx: (bx - ax) / l, hz: (bz - az) / l, done: s >= l && i === pts.length - 2 }; }
+    s -= l;
+  }
+}
+function scheduleDelivery() {
+  if (delivery.pile) scene.remove(delivery.pile.group);
+  for (const f of delivery.flying) scene.remove(f.mesh);
+  Object.assign(delivery, { at: rand(9, 17), phase: 'none', s: 0, t: 0, pile: null, flying: [] });
+  truck.visible = false;
+}
+function makeTruck() {
+  const g = new THREE.Group();
+  const body = 0x2b3d4f, trim = 0x1c2733;
+  box(g, 2.1, 2.3, 3.4, body, 0, 1.55, -0.55);                                    // cargo box
+  box(g, 2.0, 1.4, 1.3, body, 0, 1.1, 1.75);                                       // cab
+  box(g, 1.9, 0.6, 0.06, mat(0x9fd6ff, { roughness: 0.15, emissive: 0x335577, emissiveIntensity: 0.3 }), 0, 1.5, 2.41);   // windshield
+  for (const s of [-1, 1]) box(g, 0.06, 0.5, 0.8, mat(0x9fd6ff, { roughness: 0.15 }), s * 1.01, 1.45, 1.75);
+  box(g, 2.0, 0.5, 0.5, trim, 0, 0.55, 2.3);                                       // bumper/hood
+  for (const s of [-1, 1]) { box(g, 0.3, 0.16, 0.06, mat(0xfff3c4, { emissive: 0xffe08a, emissiveIntensity: 0.8 }), s * 0.7, 0.75, 2.56); box(g, 0.25, 0.18, 0.06, mat(0xd9342b, { emissive: 0x991a12, emissiveIntensity: 0.6 }), s * 0.85, 0.85, -2.27); }
+  for (const s of [-1, 1]) { box(g, 0.04, 0.32, 3.3, 0x6fb8e8, s * 1.07, 1.35, -0.55); }  // side stripe
+  box(g, 1.9, 2.0, 0.05, trim, 0, 1.5, -2.27); box(g, 0.04, 2.0, 0.06, 0x8a9aa8, 0, 1.5, -2.3);   // back doors
+  box(g, 0.32, 0.3, 0.3, 0xd9b48a, 0.5, 1.45, 1.75); box(g, 0.34, 0.12, 0.34, 0x2b3d4f, 0.5, 1.64, 1.75); // the driver, in a cap
+  const wheels = [];
+  for (const [x, z] of [[-1.02, 1.6], [1.02, 1.6], [-1.02, -1.4], [1.02, -1.4]]) {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.3, 12), mat(0x1a1a1a)); w.rotation.z = Math.PI / 2; w.position.set(x, 0.42, z); w.castShadow = true; g.add(w); wheels.push(w);
+  }
+  g.userData.wheels = wheels;
+  return g;
+}
+const CARDBOARD = [0xc49a6c, 0xb88d5c, 0xd4ad7c, 0xa8814f];
+function makeParcel(i) {
+  const g = new THREE.Group(), w = rand(0.4, 1.0), h = rand(0.3, 0.75), d = rand(0.4, 0.9);
+  box(g, w, h, d, CARDBOARD[i % 4], 0, h / 2, 0);
+  box(g, w + 0.01, h * 0.12, 0.12, 0xd9c08a, 0, h * 0.995, 0).castShadow = false;                 // tape
+  if (i % 3 === 0) box(g, 0.22, 0.01, 0.16, 0xf6f4ef, w * 0.2, h + 0.006, d * 0.2).castShadow = false; // shipping label
+  g.userData.h = h;
+  return g;
+}
+function updateDelivery(dt) {
+  const D = delivery;
+  if (D.phase === 'none') {
+    if (S.time >= D.at) { D.phase = 'in'; D.s = 0; truck.visible = true; sfx.truck(); toast('📦 A delivery van is pulling up the driveway...'); }
+    else return;
+  }
+  const tw = truck.userData.wheels, place = (p, rev) => {
+    truck.position.set(p.x, 0, p.z);
+    const want = Math.atan2(rev ? -p.hx : p.hx, rev ? -p.hz : p.hz);
+    let diff = want - truck.rotation.y; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
+    truck.rotation.y += diff * Math.min(1, dt * 4);
+    for (const w of tw) w.rotation.x += (rev ? -1 : 1) * dt * 12;
+  };
+  if (D.phase === 'in') {
+    const left = ROUTE_IN_LEN - D.s;
+    D.s += dt * (left < 8 ? Math.max(1.2, left * 1.3) : 11); // eases to a stop at the porch
+    const p = polyAt(ROUTE_IN, D.s); place(p, false);
+    if (p.done || left < 0.05) {
+      D.phase = 'dump'; D.t = 0; D.n = Math.floor(rand(24, 34));
+      D.pile = { group: new THREE.Group(), x: PILE_AT.x, z: PILE_AT.z, left: 0, heights: [] };
+      D.pile.group.position.set(PILE_AT.x, 0, PILE_AT.z); scene.add(D.pile.group);
+    }
+  } else if (D.phase === 'dump') {
+    // parcels fly out of the side door one after another and land on an ever-taller, wobblier stack
+    D.t += dt;
+    if (D.pile.left + D.flying.length < D.n && D.t > 0.12) {
+      D.t = 0;
+      const i = D.pile.left + D.flying.length, m = makeParcel(i);
+      const col = i % 3, ox = (col - 1) * 0.75 + rand(-0.12, 0.12), oz = rand(-0.2, 0.2);
+      const from = truck.localToWorld(new THREE.Vector3(-1.1, 1.4, 0.2));
+      D.pile.heights[col] = D.pile.heights[col] || 0;
+      const to = { x: PILE_AT.x + ox, y: D.pile.heights[col], z: PILE_AT.z + oz };
+      D.pile.heights[col] += m.userData.h * 0.98;
+      m.position.copy(from); scene.add(m);
+      D.flying.push({ mesh: m, from, to, k: 0, spin: rand(-6, 6) });
+      sfx.swipe();
+    }
+    for (let i = D.flying.length - 1; i >= 0; i--) {
+      const f = D.flying[i]; f.k = Math.min(1, f.k + dt / 0.55);
+      f.mesh.position.set(f.from.x + (f.to.x - f.from.x) * f.k, f.from.y + (f.to.y - f.from.y) * f.k + Math.sin(f.k * Math.PI) * 2.2, f.from.z + (f.to.z - f.from.z) * f.k);
+      f.mesh.rotation.y += f.spin * dt * (1 - f.k);
+      if (f.k >= 1) { scene.remove(f.mesh); f.mesh.position.set(f.to.x - PILE_AT.x, f.to.y, f.to.z - PILE_AT.z); f.mesh.rotation.set(0, rand(-0.3, 0.3), rand(-0.04, 0.04)); D.pile.group.add(f.mesh); D.pile.left++; D.flying.splice(i, 1); }
+    }
+    if (D.pile.left >= D.n) {
+      D.phase = 'back'; D.s = 0; sfx.beep();
+      toast(`${D.n} packages. Nobody in this house ordered ${D.n} packages. Dexter should investigate (E).`);
+    }
+  } else if (D.phase === 'back') {
+    D.s += dt * 3.2;
+    const p = polyAt(ROUTE_BACK, D.s); place(p, true);
+    if (Math.floor(D.s / 1.3) !== Math.floor((D.s - dt * 3.2) / 1.3)) sfx.beep();
+    if (p.done) { D.phase = 'out'; D.s = 0; sfx.truck(); }
+  } else if (D.phase === 'out') {
+    D.s += dt * Math.min(11, 3 + D.s * 0.6);
+    const p = polyAt(ROUTE_OUT, D.s); place(p, false);
+    if (p.done) { D.phase = 'gone'; truck.visible = false; }
+  }
+  // the van shoves Dexter out of the way rather than driving through him
+  if (truck.visible) {
+    const fx = Math.sin(truck.rotation.y), fz = Math.cos(truck.rotation.y);
+    for (const k of [-1.6, 0, 1.6]) {
+      const cx = truck.position.x + fx * k, cz = truck.position.z + fz * k, dx = dex.x - cx, dz = dex.z - cz, d = Math.hypot(dx, dz);
+      if (d < 1.5 && d > 0.001 && dex.y < 0.5) { const nx = cx + (dx / d) * 1.5, nz = cz + (dz / d) * 1.5; if (!blocked(nx, nz, dex.y)) { dex.x = nx; dex.z = nz; } }
+    }
+  }
+}
+// The pile is solid. Shredding the top box sometimes turns up a treat (and always a mess).
+const PACKAGE_JUNK = ['a single sock', 'forty phone chargers', 'a bag of packing peanuts (delicious, sadly not food)', 'a cat bed. Rude.', 'a smaller box, inside which is an even smaller box',
+  'a squeaky hamburger!', 'garden hose fittings', 'bubble wrap. POP POP POP.', 'a novelty mug', 'nothing at all. Just the box. Best part.'];
+function shredPackage() {
+  const P = delivery.pile; if (!P || P.left <= 0) return;
+  const top = P.group.children.reduce((a, c) => (c.position.y > a.position.y ? c : a));
+  P.group.remove(top); P.left--;
+  const col = Math.round((top.position.x / 0.75) + 1);
+  if (P.heights[col] != null) P.heights[col] = Math.max(0, top.position.y);
+  sfx.rip(); dex.barkT = 0.36;
+  const r = Math.random();
+  if (r < 0.3) { const n = r < 0.06 ? 3 : 1; S.carried += n; sfx.pickup(); toast(n > 1 ? 'A whole box of dog treats! +3' : 'There was a treat in this one! +1'); updateHud(); }
+  else toast(`Dexter shreds a package. Inside: ${PACKAGE_JUNK[Math.floor(Math.random() * PACKAGE_JUNK.length)]}`);
+  if (P.left === 0) toast('Every single package has been destroyed. Dexter has never been prouder.');
+}
+const pileBlocked = (x, z) => delivery.pile && delivery.pile.left > 0 && Math.abs(x - PILE_AT.x) < 1.5 && Math.abs(z - PILE_AT.z) < 0.85;
+
 /* ---------- Theft cutscene ----------
  * Rather than piling on toasts and alarms, a theft pauses play for a moment and the
  * camera cuts to the culprit: one calm beat that tells you who took what. */
 let cut = null, camLift = 0;
+const loot = makeTreat('biscuit'); loot.scale.setScalar(0.55); loot.visible = false; scene.add(loot);
 function startCutscene(e, kind, n) {
   S.mode = 'cutscene';
-  cut = { e, kind, t: 0, dur: kind === 'bowl' ? 3.2 : 2.4, snap: true };
+  cut = { e, kind, t: 0, dur: kind === 'bowl' ? 3.0 : 2.6, snap: true, yaw: e.mesh.rotation.y };
+  dex.move = 0;
   keys.clear();
   $('hud').classList.add('hidden'); $('touch').classList.add('hidden'); $('prompt').classList.add('hidden');
   $('cine-text').textContent = kind === 'bowl'
@@ -877,25 +1115,39 @@ function startCutscene(e, kind, n) {
   $('cine').classList.remove('hidden');
   if (kind === 'bowl') sfx.chomp(); else sfx.swipe();
 }
+// The thief never moves during the cutscene: it grabs a biscuit, shows it off with a
+// smug little hop-and-spin, and only starts running once play resumes.
 function updateCutscene(dt) {
-  const e = cut.e, p = e.mesh.position;
+  const e = cut.e, p = e.mesh.position, u = e.mesh.userData;
   cut.t += dt;
-  const from = cut.kind === 'bowl' ? BOWL : dex;
-  if (cut.kind === 'bowl' && cut.t < 1.6) {
-    // face in the bowl, munching
-    e.mesh.rotation.y = Math.atan2(BOWL.x - p.x, BOWL.z - p.z);
-    animateDog(e.mesh, S.clock, 0, 1);
-    e.mesh.userData.head.rotation.x = 0.55 + Math.sin(S.clock * 18) * 0.2;
-    if (Math.floor(cut.t * 3) !== Math.floor((cut.t - dt) * 3)) sfx.chomp();
+  const t = cut.t, grab = cut.kind === 'bowl' ? 1.3 : 0.55;
+  const mouth = () => { u.head.updateWorldMatrix(true, false); return u.head.localToWorld(new THREE.Vector3(0, -0.02, 0.55)); };
+  if (t < grab) {
+    if (cut.kind === 'bowl') { // face in the bowl, munching
+      e.mesh.rotation.y = Math.atan2(BOWL.x - p.x, BOWL.z - p.z);
+      animateDog(e.mesh, S.clock, 0, 1);
+      u.head.rotation.x = 0.55 + Math.sin(S.clock * 18) * 0.2;
+      if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) sfx.chomp();
+    } else { // a biscuit hops out of Dexter's mouth and arcs over to the thief
+      e.mesh.rotation.y = Math.atan2(dex.x - p.x, dex.z - p.z);
+      animateDog(e.mesh, S.clock, 0, 1);
+      const k = t / grab, to = mouth();
+      loot.visible = true;
+      loot.position.set(dex.x + (to.x - dex.x) * k, dex.y + 1.1 + (to.y - dex.y - 1.1) * k + Math.sin(k * Math.PI) * 1.2, dex.z + (to.z - dex.z) * k);
+      loot.rotation.x += dt * 14;
+    }
   } else {
-    if (!cut.ran) { cut.ran = true; sfx[RIVALS[e.key].cry](); }
-    let dx = p.x - from.x, dz = p.z - from.z; const d = Math.hypot(dx, dz) || 1;
-    p.x += (dx / d) * e.speed * 0.9 * dt; p.z += (dz / d) * e.speed * 0.9 * dt;
-    pushOutOfHouse(p);
-    e.mesh.rotation.y = Math.atan2(dx, dz);
-    animateDog(e.mesh, S.clock, 1.2, 1);
+    if (!cut.ran) { cut.ran = true; sfx[RIVALS[e.key].cry](); cut.yaw = e.mesh.rotation.y; }
+    const k = t - grab;
+    animateDog(e.mesh, S.clock, 0, 1);
+    u.tail.rotation.y = Math.sin(S.clock * 30) * 0.9;                        // frantic wag
+    p.y = Math.abs(Math.sin(k * 7)) * 0.45;                                 // smug hops on the spot
+    e.mesh.rotation.y = cut.yaw + Math.min(1, k / 0.9) * Math.PI * 2;      // one victory spin
+    u.head.rotation.x = -0.35 + Math.sin(k * 7) * 0.15;                     // chin up, showing it off
+    loot.visible = true; loot.position.copy(mouth()); loot.rotation.set(0, e.mesh.rotation.y + Math.PI / 2, 0);
   }
   if (cut.t >= cut.dur) {
+    p.y = 0; loot.visible = false;
     cut = null; S.mode = 'play'; S.grace = 1;
     $('cine').classList.add('hidden'); $('hud').classList.remove('hidden');
     if (isTouch) $('touch').classList.remove('hidden');
@@ -903,8 +1155,8 @@ function updateCutscene(dt) {
 }
 
 function updateRivals(dt) {
-  spawnT -= dt * (S.time >= 19 ? 1.4 : 1);
-  const maxRivals = Math.min(3, 1 + Math.floor(S.day / 3));
+  spawnT -= dt * (isNight() ? 2 : S.time >= 19 ? 1.4 : 1);
+  const maxRivals = Math.min(4, 1 + Math.floor(S.day / 3) + (isNight() ? 1 : 0));
   if (spawnT <= 0) {
     spawnT = Math.max(32, 60 - S.day * 3) + rand(0, 15);
     if (rivals.filter((r) => r.state !== 'flee' && r.state !== 'launched').length < maxRivals) spawnRival();
@@ -946,6 +1198,7 @@ function updateRivals(dt) {
       if (e.wt <= 0) { const s = randomSpot(4, 28); e.wx = s.x; e.wz = s.z; e.wt = rand(3, 6); }
       tx = e.wx; tz = e.wz; sp *= 0.5;
     }
+    sp = Math.min(sp, RIVAL_MAX);
     const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
     if (d > 0.3) {
       p.x += (dx / d) * sp * dt; p.z += (dz / d) * sp * dt;
@@ -1036,11 +1289,11 @@ function updateRadar(dt) {
 
 const SKY = [ // hour, sky, sun intensity, hemi intensity, window glow
   [7, 0xa8dcf5, 1.5, 0.9, 0], [17, 0x9fd3f0, 1.6, 0.9, 0], [19.3, 0xf2a25c, 1.0, 0.7, 0.5],
-  [21, 0x27325c, 0.35, 0.45, 1.2], [24.5, 0x0e1430, 0.2, 0.32, 1.4],
+  [21, 0x27325c, 0.35, 0.45, 1.2], [24.5, 0x0e1430, 0.2, 0.32, 1.4], [26.5, 0x0a0f26, 0.16, 0.28, 1.4],
 ];
 const cA = new THREE.Color(), cB = new THREE.Color();
 function updateSky() {
-  const t = clamp(S.time, 7, 24.5);
+  const t = clamp(S.time, 7, 26.5);
   let i = 0; while (i < SKY.length - 2 && t > SKY[i + 1][0]) i++;
   const a = SKY[i], b = SKY[i + 1], k = clamp((t - a[0]) / (b[0] - a[0]), 0, 1);
   cA.setHex(a[1]); cB.setHex(b[1]); cA.lerp(cB, k);
@@ -1052,25 +1305,32 @@ function updateSky() {
   sun.position.set(Math.cos(ang) * 45, 14 + Math.sin(ang) * 34, 22);
 }
 
+// Shared by the yard and the house: warnings, then at 2 AM Dexter falls asleep wherever he is.
+function nightChecks() {
+  if (S.time >= 21 && S.nightWarned < 1) { S.nightWarned = 1; sfx.night(); toast('It\'s getting dark. The raccoons are coming out. Head to your bed on the porch!'); }
+  if (S.time >= 24 && S.nightWarned < 2) { S.nightWarned = 2; sfx.night(); toast('Midnight. Dexter is getting VERY sleepy. Get to bed before 2 AM or lose everything!'); }
+  if (S.time >= PASS_OUT) { endDay(true); return true; }
+  return false;
+}
 function updatePlay(dt) {
   if ($('help').classList.contains('hidden')) {
     S.time += dt / 15; // 15 real seconds per game hour
     S.grace = Math.max(0, S.grace - dt);
     updateDexter(dt);
+    if (updateDoorsOutside(dt)) return;
     updateTreats(dt);
     updateRivals(dt);
     if (S.mode !== 'play') return;
     updateSquirrel(dt);
     updateToads(dt);
+    if (S.mode !== 'play') return;
     updateFriends(dt);
+    updateDelivery(dt);
     updateRadar(dt);
     if (S.time >= 19.5) { sfx.music('night'); sfx.ambient('night'); }
-    if (S.time >= 21 && !S.nightWarned) { S.nightWarned = true; sfx.night(); toast('It\'s getting dark. Head to your bed on the porch — raccoons are about!'); }
-    if (S.time >= 24) { endDay(true); return; }
+    if (nightChecks()) return;
   }
-  const a = currentAction(), pr = $('prompt');
-  if (a) { pr.textContent = `${isTouch ? '🐾' : 'E'} · ${a.label}`; pr.classList.remove('hidden'); } else pr.classList.add('hidden');
-  hudT -= dt; if (hudT <= 0) { hudT = 0.12; updateHud(); }
+  showPrompt(dt);
 }
 
 const camLook = new THREE.Vector3(0, 1, -8), camWant = new THREE.Vector3(), lookWant = new THREE.Vector3();
@@ -1091,6 +1351,7 @@ function updateCamera(dt) {
     }
   }
   else if (S.mode === 'dday') { if (dday.camera(camWant, lookWant)) { camera.position.copy(camWant); camLook.copy(lookWant); } } // true = hard cut
+  else if (S.mode === 'house') home.camera(camWant, lookWant, dex);
   else if (cut) {
     const p = cut.e.mesh.position;
     camWant.set(p.x + 2.4 - cut.t * 0.3, 2.3, p.z + 4.8 - cut.t * 0.25); lookWant.set(p.x, 0.7, p.z); // slow push-in on the thief
@@ -1103,6 +1364,7 @@ function updateCamera(dt) {
     camLift += ((hidden ? 1 : 0) - camLift) * Math.min(1, dt * 3);
     camWant.set(dex.x, dex.y + 8 + camLift * 8, dex.z + 9.5 - camLift * 5.5); lookWant.set(dex.x, dex.y + 1, dex.z);
   }
+  if (camSnap) { camSnap = false; camera.position.copy(camWant); camLook.copy(lookWant); } // hard cut through a doorway
   const k = Math.min(1, dt * (battleCam ? 5 : 6));
   camera.position.lerp(camWant, k);
   camLook.lerp(lookWant, k);
@@ -1119,11 +1381,12 @@ function frame(now) {
 function tick(dt) {
   S.clock += dt;
   if (S.mode === 'play') updatePlay(dt);
+  else if (S.mode === 'house') updateHome(dt);
   else if (S.mode === 'dday') dday.update(dt);
   else if (S.mode === 'cutscene') updateCutscene(dt);
   if (S.mode === 'title') { dex.mesh.position.set(0, 0, -5); dex.mesh.rotation.y = Math.sin(S.clock * 0.5) * 0.5; }
   if (S.mode === 'battle') { for (const r of rivals) animateDog(r.mesh, S.clock, 0, 0.5); for (const b of battleBuffs) animateBuff(b, S.clock); }
-  animateDog(dex.mesh, S.clock, S.mode === 'play' ? dex.move : dex.glitch ? 1.3 : 0, S.mode === 'battle' ? 0.2 : 0.7);
+  animateDog(dex.mesh, S.clock, S.mode === 'play' || S.mode === 'house' ? dex.move : dex.glitch ? 1.3 : 0, S.mode === 'battle' ? 0.2 : 0.7);
   if (dex.barkT > 0) { // two quick head-tosses in time with the woof-woof
     dex.barkT -= dt;
     const k = 1 - Math.max(0, dex.barkT) / 0.36, u = dex.mesh.userData;
@@ -1136,9 +1399,11 @@ function tick(dt) {
   yard.userData.flames.forEach((f, i) => { f.scale.y = 0.8 + Math.sin(S.clock * (9 + i * 3) + i) * 0.25; f.rotation.y += dt * 3; }); // campfire flicker
   const pm = house.userData.porchMat;
   pm.opacity += ((S.mode === 'play' && inPorch(dex.x, dex.z) ? 0.18 : 1) - pm.opacity) * Math.min(1, dt * 6);
+  const under = S.mode === 'play' && inScreenPorch(dex.x, dex.z);
+  for (const m of house.userData.deckMats) { m.opacity += ((under ? 0.15 : 1) - m.opacity) * Math.min(1, dt * 6); m.depthWrite = m.opacity > 0.95; }
   updateSky();
   updateCamera(dt);
-  renderer.render(S.mode === 'dday' ? dday.scene : inArena ? battleScene : scene, camera);
+  renderer.render(S.mode === 'dday' ? dday.scene : inArena ? battleScene : S.mode === 'house' ? home.scene : scene, camera);
 }
 
 /* ---------- Boot ---------- */
@@ -1150,6 +1415,6 @@ if (sv && sv.day > 1) {
   $('best').textContent = `Biggest stash: ${S.best} 🦴 · ${rankFor(S.best)}`;
 }
 if (ddayUnlocked()) $('btn-dday').classList.remove('hidden');
-window.__dexter = { dday, startDday, S, dex, rivals, treats, toads, keys, FRIENDS, startBattle, spawnRival, endDay, tick, startDay };
+window.__dexter = { dday, startDday, S, dex, rivals, treats, toads, keys, FRIENDS, startBattle, spawnRival, endDay, tick, startDay, home, enterHome, exitHome, doors, delivery, startCutscene };
 buildNature(1); // handy for debugging
 requestAnimationFrame(frame);

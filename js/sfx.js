@@ -270,6 +270,10 @@ export const sfx = {
   splat: () => { for (let i = 0; i < 7; i++) tone(240 + Math.random() * 300, 0.09, 'sine', 0.13, 70, i * 0.05); const a = ac(); if (a) noise(0.2, 0.05, a.currentTime + 0.3, null, 1500); },
   whimper: () => { tone(980, 0.35, 'sine', 0.11, 620); tone(1050, 0.3, 'sine', 0.1, 700, 0.4); tone(900, 0.6, 'sine', 0.11, 420, 0.75); },
   derp: () => { tone(260, 0.18, 'triangle', 0.15, 180); tone(180, 0.2, 'triangle', 0.15, 120, 0.2); tone(120, 0.5, 'triangle', 0.16, 60, 0.42); tone(700, 0.08, 'sine', 0.08, 1100, 0.95); },
+  door: () => { tone(180, 0.35, 'triangle', 0.05, 260, 0.25); tone(260, 0.25, 'triangle', 0.04, 210, 0.55); },
+  rip: () => { const a = ac(); if (!a) return; for (let i = 0; i < 3; i++) noise(0.09, 0.08, a.currentTime + i * 0.11, null, 3500); },
+  truck: () => { tone(70, 1.4, 'sawtooth', 0.04, 90); tone(55, 1.4, 'square', 0.025, 60, 0.1); },
+  beep: () => { for (let i = 0; i < 3; i++) tone(1050, 0.18, 'square', 0.03, null, i * 0.4); },
   chomp: () => { for (let i = 0; i < 3; i++) tone(160, 0.06, 'square', 0.14, 90, i * 0.12); },
   swipe: () => { const a = ac(); if (a) noise(0.16, 0.1, a.currentTime, null, 2500); },
 };

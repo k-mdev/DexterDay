@@ -35,6 +35,9 @@ then open <http://localhost:8791>. (It must be served over HTTP; opening `index.
 - **Seasons**: every two days the season turns. Plants are regrown from a seed with new positions and colours; buildings stay the same. It's Florida, so there is no real winter.
 - **Cane toads** hop around the yard. Licking one costs a little confidence and makes Dexter's steering wobbly for a few seconds.
 - **Easter egg**: there is a hidden daydream level. It has something to do with the toads.
+- **The house**: bark at the front door (or the sliding door in the back screened porch) and it swings open. Inside: hallway, bathroom, living room with a balcony landing upstairs, kitchen, dining room overlooking the lake and the master bedroom. A few treats are hidden indoors each day.
+- **Deliveries**: once a day, at a random time, a delivery van rolls up the driveway and dumps a ridiculous tower of packages by the porch. Dexter can shred them (E); some have treats inside.
+- **Night**: rivals never move faster than 70% of Dexter's walking speed. After dark the raccoons come out. Not in bed by 2 AM? Dexter passes out and loses his carried treats *and* his whole stash.
 - **Extras**: dig spots, a squirrel worth chasing, a lake and kiddie pool that recharge zoomies, XP and levels, a day/night cycle, and a bed on the porch to end the day (rivals can't get onto the porch). Progress saves at the end of each day.
 
 ## Tech
@@ -42,8 +45,8 @@ then open <http://localhost:8791>. (It must be served over HTTP; opening `index.
 Plain HTML/CSS/ES modules with [three.js](https://threejs.org) from a CDN. All models are built in code and all music, ambience and sound effects are synthesised with WebAudio, so there are no asset files.
 
 - `js/main.js` — world, game loop, rivals, friends, day flow
-- `js/battle.js` — turn-based battle system
-- `js/cutin.js` — 3D isometric portrait for the attack banners
+- `js/battle.js` — turn-based battle system, rival roster and the attack banners
+- `js/house.js` — the inside of the house (its own scene, collision, stairs and doors)
 - `js/dday.js` — the hidden daydream level
 - `js/models.js` — every model, including Serious Mode
 - `js/sfx.js` — sound effects, music sequencer, ambience

@@ -60,6 +60,9 @@ export function makeDog(o = {}) {
     box(inner, c.bodyW * 0.36, c.bodyH * 0.75, 0.05, c.chest, 0, bodyY - 0.04, c.bodyLen * 0.48 + 0.01);
     box(inner, c.bodyW * 0.2, 0.05, c.bodyLen * 0.3, c.chest, 0, bodyY - c.bodyH / 2 - 0.02, c.bodyLen * 0.3);
   }
+  if (c.saddle) box(inner, c.bodyW + 0.03, c.bodyH * 0.45, c.bodyLen * 0.7, c.saddle, 0, bodyY + c.bodyH * 0.3, -c.bodyLen * 0.08); // dark back
+  if (c.spots) for (const [sx, sy, sz] of [[1, 0.3, 0.3], [-1, 0.1, 0.15], [1, -0.1, -0.2], [-1, 0.35, -0.3], [0, 1, 0.05], [0, 1, -0.32], [1, 0.2, -0.05], [-1, -0.15, 0.35]])
+    box(inner, sx ? 0.03 : 0.12, sx ? 0.12 : 0.03, 0.12, c.spots, sx * (c.bodyW / 2 + 0.005), bodyY + (sx ? sy * c.bodyH : c.bodyH / 2 + 0.005), sz * c.bodyLen, 0.2);
   if (c.collar !== null) {
     box(inner, c.bodyW * 0.8, 0.09, 0.3, c.collar, 0, bodyY + c.bodyH * 0.42, c.bodyLen / 2 + 0.02).rotation.x = -0.6;
     if (c.tag) box(inner, 0.09, 0.1, 0.03, mat(0xf2c230, { metalness: 0.6, roughness: 0.3 }), 0, bodyY + 0.05, c.bodyLen / 2 + 0.13);
@@ -373,6 +376,13 @@ export const RIVAL_LOOKS = {
   corgi: { color: 0xe09a45, chest: 0xfff6e6, snoutColor: 0xfff6e6, scale: 0.85, ear: 'big', bodyLen: 1.25, legLen: 0.2, tail: 'nub', collar: 0x38a860, eye: 0x2a1500 },
   poodle: { color: 0xf3ede4, scale: 0.95, fluffy: true, legLen: 0.6, bodyLen: 0.9, bodyW: 0.42, tail: 'pom', snout: 0.34, collar: 0xb04fe0, eye: 0x1a0d00, tongue: false },
   husky: { color: 0x7d8794, chest: 0xf5f6f8, snoutColor: 0xf5f6f8, scale: 1.12, ear: 'pointy', tail: 'curl', tailTip: 0xf5f6f8, eye: 0x6ecbff, collar: 0x23263a },
+  beagle: { color: 0xb0743a, chest: 0xfaf7f0, snoutColor: 0xfaf7f0, earColor: 0x6b3f1d, scale: 0.8, bodyLen: 0.95, legLen: 0.32, tail: 'long', tailTip: 0xfaf7f0, collar: 0xd9342b, eye: 0x2a1500, saddle: 0x2a2420 },
+  dachshund: { color: 0x8a4a22, earColor: 0x6b3518, scale: 0.75, bodyLen: 1.45, bodyW: 0.42, bodyH: 0.4, legLen: 0.14, snout: 0.36, tail: 'long', collar: 0x2fb5a8, eye: 0x1a0d00 },
+  shiba: { color: 0xd9853a, chest: 0xfff3e0, snoutColor: 0xfff3e0, scale: 0.85, ear: 'pointy', bodyLen: 0.95, tail: 'curl', tailTip: 0xfff3e0, collar: 0xe8443a, eye: 0x1a0d00 },
+  dalmatian: { color: 0xf6f4ef, scale: 1.0, legLen: 0.55, bodyLen: 1.1, bodyW: 0.46, snout: 0.34, tail: 'long', collar: 0xd9342b, eye: 0x2a1500, spots: 0x16161a, earColor: 0x2a2a2e },
+  golden: { color: 0xd9a24e, chest: 0xf0cf8a, scale: 1.05, fluffy: true, bodyLen: 1.15, legLen: 0.5, tail: 'long', tailTip: 0xf0cf8a, collar: 0x3b6fd9, eye: 0x3a1f08 },
+  boxer: { color: 0xc4874a, chest: 0xfaf7f0, snoutColor: 0x231d1a, scale: 1.0, bodyLen: 1.05, bodyW: 0.52, legLen: 0.55, snout: 0.14, tail: 'nub', collar: 0x23263a, eye: 0x2a1500 },
+  shepherd: { color: 0xb5793a, snoutColor: 0x231d1a, earColor: 0x231d1a, scale: 1.15, ear: 'pointy', bodyLen: 1.2, legLen: 0.52, snout: 0.34, tail: 'long', tailTip: 0x231d1a, collar: 0xc7362b, eye: 0x3a1f08, saddle: 0x231d1a },
   raccoon: { color: 0x7b7b78, snoutColor: 0xdcdcd4, mask: true, scale: 0.62, ear: 'pointy', bodyLen: 0.9, bodyW: 0.56, legLen: 0.25, tail: 'ring', eye: 0x101010, tongue: false, snout: 0.22 },
 };
 
@@ -477,8 +487,21 @@ export function makeHouse() {
     if (shutters) for (const s of [-1, 1]) box(g, 0.42, h + 0.1, 0.1, green, x + s * (w / 2 + 0.36), y, frontZ);
   };
   windowAt(-3.4, D + 1.75); windowAt(3.4, D + 1.75); windowAt(1.75, D + 1.75, 0.8, 1.9, false);
-  box(g, 1.5, 2.5, 0.1, trim, 0, D + 1.25, frontZ); box(g, 1.25, 2.3, 0.14, green, 0, D + 1.17, frontZ + 0.01);
-  box(g, 0.1, 0.1, 0.1, 0xf2c230, 0.42, D + 1.15, frontZ + 0.1);
+  // front door: dark teal with a little window, wall lanterns either side (it swings open when Dexter barks)
+  box(g, 1.5, 2.5, 0.1, trim, 0, D + 1.25, frontZ);
+  box(g, 1.25, 2.3, 0.04, 0x2a2118, 0, D + 1.17, frontZ + 0.055);                 // dark hallway behind it
+  const door = new THREE.Group(); door.position.set(-0.625, D, frontZ + 0.1); g.add(door);
+  box(door, 1.25, 2.3, 0.08, 0x1d4352, 0.625, 1.17, 0);
+  box(door, 0.55, 0.34, 0.09, win, 0.625, 1.95, 0); box(door, 0.6, 0.04, 0.1, 0x173845, 0.625, 1.75, 0);
+  for (const y of [0.45, 1.15]) box(door, 0.8, 0.5, 0.09, 0x214b5c, 0.625, y, 0.005);
+  box(door, 0.06, 0.2, 0.12, mat(0xbfc4c8, { metalness: 0.6, roughness: 0.3 }), 1.05, 1.1, 0.03);
+  g.userData.frontDoor = door;
+  for (const s of [-1, 1]) {
+    box(g, 0.08, 0.3, 0.12, 0x2a2a2a, s * 1.05, D + 2.0, frontZ + 0.1);
+    box(g, 0.22, 0.3, 0.22, mat(0xffe6a8, { emissive: 0xffc860, emissiveIntensity: 0.5 }), s * 1.05, D + 1.95, frontZ + 0.24);
+    box(g, 0.28, 0.06, 0.28, 0x2a2a2a, s * 1.05, D + 2.13, frontZ + 0.24);
+  }
+  box(g, 0.2, 0.14, 0.05, 0xf0ead8, 0.95, D + 1.15, frontZ + 0.07);               // doorbell
   for (const x of [-5.02, 5.02]) box(g, 0.12, 1.5, 1.2, win, x, D + 1.75, -18.5);
 
   // porch roof (fades when Dexter is underneath so you can still see him)
@@ -553,12 +576,27 @@ export function makeHouse() {
   for (const x of [-4.1, -1.4, 1.3]) box(g, 0.16, 2.8, 0.16, trim, x, 1.7, -25.1);
   for (const x of [-4.1, 1.3]) box(g, 0.16, 2.8, 0.16, trim, x, 1.7, -21.7);
   box(g, 5.3, 2.5, 0.04, scr, -1.4, 1.6, -25.1); box(g, 0.04, 2.5, 3.4, scr, -4.1, 1.6, -23.4); box(g, 0.04, 2.5, 3.4, scr, 1.3, 1.6, -23.4);
-  box(g, 5.4, 0.1, 0.1, trim, -1.4, 0.95, -25.12); box(g, 0.9, 2.1, 0.06, trim, 1.33, 1.35, -24.2); // kick rail + screen door
-  box(g, 5.9, 0.2, 3.9, wood, -1.4, 3.15, -23.4);                                                   // balcony deck
-  box(g, 5.9, 0.09, 0.1, trim, -1.4, 4.15, -25.3); box(g, 0.1, 0.09, 3.8, trim, -4.3, 4.15, -23.4);
-  for (let x = -4.25; x <= 1.5; x += 0.38) box(g, 0.07, 0.9, 0.07, trim, x, 3.7, -25.3);
-  for (let z = -25.2; z <= -21.6; z += 0.38) box(g, 0.07, 0.9, 0.07, trim, -4.3, 3.7, z);
-  box(g, 0.1, 0.09, 1.3, trim, 1.5, 4.15, -24.65); for (let z = -25.2; z <= -24.1; z += 0.38) box(g, 0.07, 0.9, 0.07, trim, 1.5, 3.7, z);
+  box(g, 5.4, 0.1, 0.1, trim, -1.4, 0.95, -25.12);                                                   // kick rail
+  const screenDoor = box(g, 0.06, 2.1, 0.75, scr, 1.3, 1.35, -24.3); box(g, 0.08, 2.15, 0.06, trim, 1.3, 1.35, -24.68); box(g, 0.08, 2.15, 0.06, trim, 1.3, 1.35, -23.92);
+  screenDoor.castShadow = false;
+  // sliding glass door from the screened porch into the living room
+  box(g, 2.3, 2.3, 0.06, trim, -1.4, 0.3 + 1.15, -21.53);
+  box(g, 2.1, 2.15, 0.04, 0x2a2118, -1.4, 0.3 + 1.1, -21.55);
+  const glass = mat(0xbfe3f5, { transparent: true, opacity: 0.55, roughness: 0.1 });
+  box(g, 1.05, 2.15, 0.05, glass, -0.88, 0.3 + 1.1, -21.6);                                          // fixed half
+  const slide = new THREE.Group(); slide.position.set(-1.93, 0.3, -21.66); g.add(slide);
+  box(slide, 1.05, 2.15, 0.05, glass, 0, 1.1, 0);
+  for (const sx of [-0.5, 0.5]) box(slide, 0.06, 2.15, 0.07, trim, sx, 1.1, 0);
+  box(slide, 0.05, 0.4, 0.06, 0x8a8f94, 0.42, 1.1, -0.04);
+  g.userData.slider = slide;
+  // balcony on top fades out while Dexter is in the screened porch below it
+  const deckM = mat(wood, { transparent: true }), deckTrim = mat(trim, { transparent: true });
+  g.userData.deckMats = [deckM, deckTrim];
+  box(g, 5.9, 0.2, 3.9, deckM, -1.4, 3.15, -23.4);                                                   // balcony deck
+  box(g, 5.9, 0.09, 0.1, deckTrim, -1.4, 4.15, -25.3); box(g, 0.1, 0.09, 3.8, deckTrim, -4.3, 4.15, -23.4);
+  for (let x = -4.25; x <= 1.5; x += 0.38) box(g, 0.07, 0.9, 0.07, deckTrim, x, 3.7, -25.3);
+  for (let z = -25.2; z <= -21.6; z += 0.38) box(g, 0.07, 0.9, 0.07, deckTrim, -4.3, 3.7, z);
+  box(g, 0.1, 0.09, 1.3, deckTrim, 1.5, 4.15, -24.65); for (let z = -25.2; z <= -24.1; z += 0.38) box(g, 0.07, 0.9, 0.07, deckTrim, 1.5, 3.7, z);
   box(g, 1.7, 2.3, 1.7, siding, -1.4, 4.4, -21.7); box(g, 1.0, 1.9, 0.1, green, -1.4, 4.25, -22.57);  // balcony door dormer
   for (let i = 0; i < 9; i++) box(g, 0.52, 0.14, 1.25, wood, 1.85 + i * 0.5, 2.95 - i * 0.34, -23.3);   // stairs down
   for (const z of [-23.95, -22.65]) { const r = box(g, 5.3, 0.09, 0.09, trim, 3.9, 2.55, z); r.rotation.z = -0.6; }

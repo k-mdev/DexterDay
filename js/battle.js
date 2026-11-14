@@ -59,6 +59,62 @@ export const RIVALS = {
       { name: 'Tackle', power: 9, acc: 0.85, text: 'A wall of fur!' },
     ],
   },
+  beagle: {
+    name: 'Rosie', breed: 'Beagle', hp: 20, atk: 5, speed: 4.4, xp: 11, cry: 'yap',
+    intro: 'Rosie has smelled every treat Dexter has ever touched.',
+    moves: [
+      { name: 'Bay', power: 6, acc: 0.95, text: 'AROOOO! The whole street heard it.' },
+      { name: 'Sniff Out', power: 4, acc: 1, text: 'She found the treat hidden in his cheek.', debuff: true },
+    ],
+  },
+  dachshund: {
+    name: 'Frank', breed: 'Dachshund', hp: 17, atk: 5, speed: 3.4, xp: 10, cry: 'yap',
+    intro: 'Frank is very long and very angry about it.',
+    moves: [
+      { name: 'Low Blow', power: 7, acc: 0.85, text: 'Right under the radar.' },
+      { name: 'Sausage Roll', power: 6, acc: 0.9, text: 'He just keeps coming.' },
+    ],
+  },
+  shiba: {
+    name: 'Mochi', breed: 'Shiba Inu', hp: 24, atk: 6, speed: 4.8, xp: 14, cry: 'yap',
+    intro: 'Mochi lets out a scream that sounds like a person.',
+    moves: [
+      { name: 'Shiba Scream', power: 5, acc: 1, text: 'Dexter has never heard anything like it.', debuff: true },
+      { name: 'Smug Stare', power: 7, acc: 0.85, text: 'Such disdain. Very hurt.' },
+    ],
+  },
+  dalmatian: {
+    name: 'Pepper', breed: 'Dalmatian', hp: 29, atk: 7, speed: 5.0, xp: 17, cry: 'bark',
+    intro: 'Pepper counts Dexter\'s spots. He has zero. She is unimpressed.',
+    moves: [
+      { name: 'Spot Check', power: 6, acc: 0.95, text: 'Dexter feels very plain.' },
+      { name: 'Fire Drill', power: 9, acc: 0.8, text: 'Stop, drop and roll... over Dexter.' },
+    ],
+  },
+  golden: {
+    name: 'Sunny', breed: 'Golden Retriever', hp: 31, atk: 6, speed: 4.6, xp: 17, cry: 'bark',
+    intro: 'Sunny is so friendly about stealing your treats.',
+    moves: [
+      { name: 'Aggressive Fetch', power: 8, acc: 0.85, text: 'A tennis ball, at speed.' },
+      { name: 'Wag Attack', power: 5, acc: 1, text: 'Whap whap whap.' },
+    ],
+  },
+  boxer: {
+    name: 'Tank', breed: 'Boxer', hp: 36, atk: 8, speed: 5.0, xp: 24, cry: 'bark',
+    intro: 'Tank bounces in place like he has somewhere to be.',
+    moves: [
+      { name: 'One-Two', power: 9, acc: 0.85, text: 'Float like a butterfly, sting like a boxer.' },
+      { name: 'Wiggle Butt', power: 5, acc: 1, text: 'Hypnotic. Dexter loses focus.', debuff: true },
+    ],
+  },
+  shepherd: {
+    name: 'Duke', breed: 'German Shepherd', hp: 42, atk: 8, speed: 5.4, xp: 30, cry: 'bark',
+    intro: 'Duke has been to obedience school. He did not learn obedience.',
+    moves: [
+      { name: 'Police Bark', power: 9, acc: 0.9, text: 'Dexter immediately confesses to everything.' },
+      { name: 'Pin Down', power: 7, acc: 0.85, text: 'Textbook form.' },
+    ],
+  },
   raccoon: {
     name: 'Bandit', breed: 'Raccoon', hp: 24, atk: 7, speed: 5.0, xp: 20, cry: 'yap', snatchy: true,
     intro: 'Bandit rubs his tiny hands together.',
